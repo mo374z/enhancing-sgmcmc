@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "enhancing-sgmcmc"
+name = "enhancing_sgmcmc"
 version = "0.1.0"
 description = "Enhancing sampling in SG-MCMC"
 authors = ["Moritz Schlager"]
@@ -9,6 +9,7 @@ readme = "README.md"
 python = "~3.12"
 numpy = "~1.26"
 pandas = "^2.2.3"
+jax = "^0.5.3"
 
 [tool.poetry.group.visualization.dependencies]
 matplotlib = "^3.10.1"
