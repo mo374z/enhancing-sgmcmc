@@ -42,7 +42,7 @@ def plot_gaussian_mixture_sampling(
     weights: np.ndarray,
     gaussian_mixture_logprob: Callable,
     title: str = "SGHMC Sampling",
-    figsize: Tuple[int, int] = (12, 10),
+    figsize: Tuple[int, int] = (14, 6),
     burnin: int = 0,
     plot_last_n_samples: int = 500,
     xlim: Tuple[float, float] = (-10, 10),
@@ -63,7 +63,6 @@ def plot_gaussian_mixture_sampling(
         plot_last_n_samples: Number of last samples to highlight
         xlim, ylim: Plot limits
     """
-    # Create a grid for contour plot
     x = np.linspace(xlim[0], xlim[1], 100)
     y = np.linspace(ylim[0], ylim[1], 100)
     X, Y = np.meshgrid(x, y)
@@ -74,11 +73,11 @@ def plot_gaussian_mixture_sampling(
             point = jnp.array([X[i, j], Y[i, j]])
             Z[i, j] = np.exp(gaussian_mixture_logprob(point, means, covs, weights))
 
-    fig, axes = plt.subplots(1, 2, figsize=figsize)
+    fig, axes = plt.subplots(1, 2, figsize=figsize, constrained_layout=True)
 
     ax_main = axes[0]
 
-    _ = ax_main.contour(X, Y, Z, levels=15, cmap="viridis", alpha=0.5)
+    ax_main.contour(X, Y, Z, levels=15, cmap="viridis", alpha=0.5)
 
     if burnin > 0:
         ax_main.plot(
@@ -99,9 +98,9 @@ def plot_gaussian_mixture_sampling(
         label="Sampling trajectory",
     )
 
-    ax_main.scatter(trajectory[0, 0], trajectory[0, 1], c="black", s=80, marker="o", label="Start")
+    ax_main.scatter(trajectory[0, 0], trajectory[0, 1], c="green", s=80, marker="o", label="Start")
 
-    ax_main.scatter(trajectory[-1, 0], trajectory[-1, 1], c="black", s=80, marker="o", label="End")
+    ax_main.scatter(trajectory[-1, 0], trajectory[-1, 1], c="purple", s=80, marker="o", label="End")
 
     last_n = min(plot_last_n_samples, len(trajectory) - burnin)
     ax_main.scatter(
@@ -113,30 +112,23 @@ def plot_gaussian_mixture_sampling(
         label=f"Last {last_n} samples",
     )
 
-    # Gaussian means
     for i, (mean, cov) in enumerate(zip(means, covs)):
         ax_main.scatter(mean[0], mean[1], c="red", s=100, marker="*")
 
-    # Just add one marker to the legend
-    # ax_main.scatter([], [], c='red', s=100, marker='*', label='Gaussian means')
+    ax_main.scatter([], [], c="red", s=100, marker="*", label="Gaussian means")
 
-    # Setup main plot
     ax_main.set_title(title)
     ax_main.set_xlabel("x")
     ax_main.set_ylabel("y")
-    ax_main.legend(loc="upper right", fontsize=8)
     ax_main.set_xlim(xlim)
     ax_main.set_ylim(ylim)
     ax_main.grid(True, alpha=0.3)
 
-    # Time series plot
     ax_ts = axes[1]
 
-    # Plot both coordinates
     ax_ts.plot(range(len(trajectory)), trajectory[:, 0], "b-", alpha=0.7, label="x coordinate")
     ax_ts.plot(range(len(trajectory)), trajectory[:, 1], "r-", alpha=0.7, label="y coordinate")
 
-    # Mark burn-in period
     if burnin > 0:
         ax_ts.axvline(x=burnin, color="black", linestyle="--", alpha=0.7)
         ax_ts.text(
@@ -146,15 +138,36 @@ def plot_gaussian_mixture_sampling(
             fontsize=8,
         )
 
-    # Setup time series plot
     ax_ts.set_title("Coordinates over time")
     ax_ts.set_xlabel("Iteration")
     ax_ts.set_ylabel("Coordinate value")
-    # place legend outside the plot
-    ax_ts.legend(loc="upper right", fontsize=8, bbox_to_anchor=(1.2, 1))
     ax_ts.grid(True, alpha=0.3)
 
-    fig.tight_layout()
+    handles1, labels1 = ax_main.get_legend_handles_labels()
+    handles2, labels2 = ax_ts.get_legend_handles_labels()
+
+    fig.legend(
+        handles1,
+        labels1,
+        loc="lower center",
+        bbox_to_anchor=(0.25, -0.1),
+        ncol=3,
+        frameon=False,
+        fontsize=9,
+    )
+
+    fig.legend(
+        handles2,
+        labels2,
+        loc="lower center",
+        bbox_to_anchor=(0.75, -0.1),
+        ncol=2,
+        frameon=False,
+        fontsize=9,
+    )
+
+    fig.subplots_adjust(bottom=0.2)
+
     return fig, axes
 
 
