@@ -47,22 +47,9 @@ def plot_gaussian_mixture_sampling(
     plot_last_n_samples: int = 500,
     xlim: Tuple[float, float] = (-10, 10),
     ylim: Tuple[float, float] = (-10, 10),
+    plot_mean: bool = False,
 ):
-    """
-    Plot results of SGHMC sampling from a Gaussian mixture model.
-
-    Args:
-        trajectory: Sampling trajectory as an array of shape (n_samples, 2)
-        means: Means of the Gaussian components
-        covs: Covariance matrices of the Gaussian components
-        weights: Weights of the Gaussian components
-        gaussian_mixture_logprob: Function to compute log probability
-        title: Plot title
-        figsize: Figure size
-        burnin: Number of initial samples to mark as burn-in
-        plot_last_n_samples: Number of last samples to highlight
-        xlim, ylim: Plot limits
-    """
+    """Plot results of SGHMC sampling from a Gaussian mixture model."""
     x = np.linspace(xlim[0], xlim[1], 100)
     y = np.linspace(ylim[0], ylim[1], 100)
     X, Y = np.meshgrid(x, y)
@@ -115,7 +102,8 @@ def plot_gaussian_mixture_sampling(
     for i, (mean, cov) in enumerate(zip(means, covs)):
         ax_main.scatter(mean[0], mean[1], c="red", s=100, marker="*")
 
-    ax_main.scatter([], [], c="red", s=100, marker="*", label="Gaussian means")
+    if plot_mean:
+        ax_main.scatter([], [], c="red", s=100, marker="*", label="Gaussian means")
 
     ax_main.set_title(title)
     ax_main.set_xlabel("x")
@@ -130,13 +118,7 @@ def plot_gaussian_mixture_sampling(
     ax_ts.plot(range(len(trajectory)), trajectory[:, 1], "r-", alpha=0.7, label="y coordinate")
 
     if burnin > 0:
-        ax_ts.axvline(x=burnin, color="black", linestyle="--", alpha=0.7)
-        ax_ts.text(
-            burnin + 5,
-            ax_ts.get_ylim()[0] + 0.1 * (ax_ts.get_ylim()[1] - ax_ts.get_ylim()[0]),
-            "Burn-in ends",
-            fontsize=8,
-        )
+        ax_ts.axvline(x=burnin, color="black", linestyle="--", alpha=0.7, label="Burn-in End")
 
     ax_ts.set_title("Coordinates over time")
     ax_ts.set_xlabel("Iteration")
@@ -153,7 +135,7 @@ def plot_gaussian_mixture_sampling(
         bbox_to_anchor=(0.25, -0.1),
         ncol=3,
         frameon=False,
-        fontsize=9,
+        fontsize=8,
     )
 
     fig.legend(
@@ -161,12 +143,10 @@ def plot_gaussian_mixture_sampling(
         labels2,
         loc="lower center",
         bbox_to_anchor=(0.75, -0.1),
-        ncol=2,
+        ncol=3,
         frameon=False,
-        fontsize=9,
+        fontsize=8,
     )
-
-    fig.subplots_adjust(bottom=0.2)
 
     return fig, axes
 
@@ -198,10 +178,8 @@ def run_sghmc_experiment(
             minibatch_key, subkey = jax.random.split(subkey)
             minibatch = minibatch_generator(minibatch_key, minibatch_size)
         else:
-            # Dummy minibatch
             minibatch = (jnp.array([0.0]), jnp.array([0.0]))
 
-        # Run one sampling step
         state = sampler.sample_step(
             state=state,
             rng_key=subkey,
