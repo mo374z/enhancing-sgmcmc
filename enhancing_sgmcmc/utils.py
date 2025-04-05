@@ -1,7 +1,10 @@
+from typing import Callable, Optional, Tuple
+
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 
 
 def generate_gaussian_noise(rng_key, param_tree):
@@ -120,76 +123,51 @@ def run_sequential_sghmc(
 
 
 def plot_gmm_sampling(
-    trajectory=None,
-    samples=None,
-    means=None,
-    covs=None,
-    weights=None,
-    gaussian_mixture_logprob=None,
-    title="MCMC Sampling",
-    figsize=(14, 6),
-    burnin=0,
-    plot_last_n_samples=500,
-    padding=0.5,
-    show_samples=True,
-    show_density=True,
-    show_means=True,
-    xlim=None,
-    ylim=None,
-):
+    trajectory: Optional[NDArray] = None,
+    samples: Optional[NDArray] = None,
+    means: Optional[NDArray] = None,
+    covs: Optional[NDArray] = None,
+    weights: Optional[NDArray] = None,
+    gaussian_mixture_logprob: Optional[Callable] = None,
+    title: str = "MCMC Sampling",
+    figsize: Tuple[int, int] = (14, 6),
+    burnin: int = 0,
+    plot_last_n_samples: int = 0,
+    padding: float = 0.5,
+    show_samples: bool = True,
+    show_density: bool = True,
+    show_means: bool = False,
+    xlim: Optional[Tuple[float, float]] = None,
+    ylim: Optional[Tuple[float, float]] = None,
+) -> Tuple[plt.Figure, plt.Axes]:
     """Enhanced visualization function for MCMC sampling from Gaussian mixture models."""
     fig, axes = plt.subplots(1, 2, figsize=figsize, constrained_layout=True)
     ax_main = axes[0]
 
-    # Determine plot range based on available data
+    # Compute plot ranges automatically if not provided
     if xlim is None or ylim is None:
+        all_data = []
         if trajectory is not None:
-            t_x_min, t_x_max = trajectory[:, 0].min(), trajectory[:, 0].max()
-            t_y_min, t_y_max = trajectory[:, 1].min(), trajectory[:, 1].max()
-        else:
-            t_x_min, t_x_max, t_y_min, t_y_max = 0, 0, 0, 0
-
+            all_data.append(trajectory)
         if samples is not None:
-            s_x_min, s_x_max = samples[:, 0].min(), samples[:, 0].max()
-            s_y_min, s_y_max = samples[:, 1].min(), samples[:, 1].max()
-        else:
-            s_x_min, s_x_max, s_y_min, s_y_max = 0, 0, 0, 0
-
+            all_data.append(samples)
         if means is not None:
-            m_x_min, m_x_max = means[:, 0].min(), means[:, 0].max()
-            m_y_min, m_y_max = means[:, 1].min(), means[:, 1].max()
+            all_data.append(means)
+
+        # Compute bounds from all available data
+        if all_data:
+            all_points = np.vstack([d for d in all_data if len(d) > 0])
+            x_min, y_min = all_points.min(axis=0) - padding
+            x_max, y_max = all_points.max(axis=0) + padding
         else:
-            m_x_min, m_x_max, m_y_min, m_y_max = 0, 0, 0, 0
+            # default limits
+            x_min, x_max, y_min, y_max = -10, 10, -10, 10
 
-        # Combine ranges from different data sources
-        x_min = (
-            min(t_x_min, s_x_min, m_x_min)
-            if any([trajectory is not None, samples is not None, means is not None])
-            else -10
-        )
-        x_max = (
-            max(t_x_max, s_x_max, m_x_max)
-            if any([trajectory is not None, samples is not None, means is not None])
-            else 10
-        )
-        y_min = (
-            min(t_y_min, s_y_min, m_y_min)
-            if any([trajectory is not None, samples is not None, means is not None])
-            else -10
-        )
-        y_max = (
-            max(t_y_max, s_y_max, m_y_max)
-            if any([trajectory is not None, samples is not None, means is not None])
-            else 10
-        )
-
-        # Add padding
-        x_range = x_max - x_min
-        y_range = y_max - y_min
-        x_min -= x_range * padding
-        x_max += x_range * padding
-        y_min -= y_range * padding
-        y_max += y_range * padding
+        # Use custom limits if provided
+        if xlim is not None:
+            x_min, x_max = xlim
+        if ylim is not None:
+            y_min, y_max = ylim
     else:
         x_min, x_max = xlim
         y_min, y_max = ylim
@@ -216,15 +194,13 @@ def plot_gmm_sampling(
 
     # Plot data samples if requested
     if show_samples and samples is not None:
-        ax_main.scatter(
-            samples[:, 0], samples[:, 1], c="gray", s=10, alpha=0.3, label="Data samples"
-        )
+        ax_main.scatter(samples[:, 0], samples[:, 1], c="gray", s=10, alpha=1, label="Data samples")
 
     # Plot Gaussian component means if requested
     if show_means and means is not None:
         for mean in means:
-            ax_main.scatter(mean[0], mean[1], c="red", s=100, marker="*")
-        ax_main.scatter([], [], c="red", s=100, marker="*", label="Gaussian means")
+            ax_main.scatter(mean[0], mean[1], c="red", s=50, marker="*")
+        ax_main.scatter([], [], c="red", s=50, marker="*", label="Gaussian means")
 
     # Plot MCMC trajectory if available
     if trajectory is not None:
@@ -234,7 +210,7 @@ def plot_gmm_sampling(
                 trajectory[:burnin, 1],
                 "r-",
                 alpha=0.5,
-                linewidth=0.8,
+                linewidth=2,
                 label=f"Burn-in ({burnin} samples)",
             )
 
@@ -243,26 +219,27 @@ def plot_gmm_sampling(
             trajectory[burnin:, 1],
             "b-",
             alpha=0.4,
-            linewidth=0.8,
+            linewidth=2,
             label="Sampling trajectory",
         )
 
         ax_main.scatter(
-            trajectory[0, 0], trajectory[0, 1], c="green", s=80, marker="o", label="Start"
+            trajectory[0, 0], trajectory[0, 1], c="green", s=50, marker="o", label="Start"
         )
         ax_main.scatter(
-            trajectory[-1, 0], trajectory[-1, 1], c="purple", s=80, marker="o", label="End"
+            trajectory[-1, 0], trajectory[-1, 1], c="purple", s=50, marker="o", label="End"
         )
 
-        last_n = min(plot_last_n_samples, len(trajectory) - burnin)
-        ax_main.scatter(
-            trajectory[-last_n:, 0],
-            trajectory[-last_n:, 1],
-            c="black",
-            s=15,
-            alpha=0.5,
-            label=f"Last {last_n} samples",
-        )
+        if plot_last_n_samples > 0:
+            last_n = min(plot_last_n_samples, len(trajectory) - burnin)
+            ax_main.scatter(
+                trajectory[-last_n:, 0],
+                trajectory[-last_n:, 1],
+                c="black",
+                s=10,
+                alpha=0.5,
+                label=f"Last {last_n} samples",
+            )
 
         # Plot trajectory in time series on the second subplot
         ax_ts = axes[1]
