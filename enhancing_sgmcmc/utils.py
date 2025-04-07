@@ -84,6 +84,7 @@ def run_sequential_sghmc(
     data,
     num_samples,
     batch_size,
+    init_m=None,
     step_size=0.05,
     mdecay=0.05,
     num_integration_steps=1,
@@ -91,7 +92,7 @@ def run_sequential_sghmc(
     seed=0,
 ):
     """Run SGHMC with sequential control over batches."""
-    state = sampler.init_state(init_position)
+    state = sampler.init_state(init_position, init_m)
     trajectory = np.zeros((num_samples, init_position.shape[0]))
     trajectory[0] = np.array(state.position)
 

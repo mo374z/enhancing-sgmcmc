@@ -41,12 +41,15 @@ class SGHMC:
         """
         self._grad_estimator = grad_estimator
 
-    def init_state(self, position):
+    def init_state(self, position, elementwise_sd=None) -> State:
         """Initialize the sampler state."""
+        if elementwise_sd is None:
+            elementwise_sd = jax.tree_map(jnp.ones_like, position)
+
         return self.State(
             position=position,
             momentum=jax.tree.map(jnp.zeros_like, position),
-            elementwise_sd=jax.tree.map(jnp.ones_like, position),
+            elementwise_sd=elementwise_sd,
             logdensity_grad=jax.tree.map(jnp.zeros_like, position),
         )
 
