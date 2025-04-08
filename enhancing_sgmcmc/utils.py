@@ -145,6 +145,8 @@ def plot_gmm_sampling(
     fig, axes = plt.subplots(1, 2, figsize=figsize, constrained_layout=True)
     ax_main = axes[0]
 
+    cmap = plt.get_cmap("Dark2")
+
     # Compute plot ranges automatically if not provided
     if xlim is None or ylim is None:
         all_data = []
@@ -191,11 +193,8 @@ def plot_gmm_sampling(
                 point = jnp.array([X[i, j], Y[i, j]])
                 Z[i, j] = np.exp(gaussian_mixture_logprob(point, means, covs, weights))
 
-        ax_main.contour(X, Y, Z, levels=15, cmap="viridis", alpha=0.5)
-
-    # Plot data samples if requested
-    if show_samples and samples is not None:
-        ax_main.scatter(samples[:, 0], samples[:, 1], c="gray", s=10, alpha=1, label="Data samples")
+        ax_main.contour(X, Y, Z, levels=15, cmap="coolwarm_r", alpha=0.5)
+        # TODO: shouldnt we plot the logprob?
 
     # Plot Gaussian component means if requested
     if show_means and means is not None:
@@ -209,8 +208,7 @@ def plot_gmm_sampling(
             ax_main.plot(
                 trajectory[:burnin, 0],
                 trajectory[:burnin, 1],
-                "r-",
-                alpha=0.5,
+                color=cmap(4),
                 linewidth=2,
                 label=f"Burn-in ({burnin} samples)",
             )
@@ -218,17 +216,16 @@ def plot_gmm_sampling(
         ax_main.plot(
             trajectory[burnin:, 0],
             trajectory[burnin:, 1],
-            "b-",
-            alpha=0.4,
+            color=cmap(0),
             linewidth=2,
             label="Sampling trajectory",
         )
 
         ax_main.scatter(
-            trajectory[0, 0], trajectory[0, 1], c="green", s=50, marker="o", label="Start"
+            trajectory[0, 0], trajectory[0, 1], color=cmap(3), s=50, marker="o", label="Start"
         )
         ax_main.scatter(
-            trajectory[-1, 0], trajectory[-1, 1], c="purple", s=50, marker="o", label="End"
+            trajectory[-1, 0], trajectory[-1, 1], color=cmap(2), s=50, marker="o", label="End"
         )
 
         if plot_last_n_samples > 0:
@@ -244,8 +241,12 @@ def plot_gmm_sampling(
 
         # Plot trajectory in time series on the second subplot
         ax_ts = axes[1]
-        ax_ts.plot(range(len(trajectory)), trajectory[:, 0], "b-", alpha=0.7, label="x coordinate")
-        ax_ts.plot(range(len(trajectory)), trajectory[:, 1], "r-", alpha=0.7, label="y coordinate")
+        ax_ts.plot(
+            range(len(trajectory)), trajectory[:, 0], color=cmap(1), alpha=0.7, label="x coordinate"
+        )
+        ax_ts.plot(
+            range(len(trajectory)), trajectory[:, 1], color=cmap(5), alpha=0.7, label="y coordinate"
+        )
 
         if burnin > 0:
             ax_ts.axvline(x=burnin, color="black", linestyle="--", alpha=0.7, label="Burn-in End")
@@ -266,6 +267,9 @@ def plot_gmm_sampling(
             frameon=False,
             fontsize=8,
         )
+    # Plot data samples if requested
+    if show_samples and samples is not None:
+        ax_main.scatter(samples[:, 0], samples[:, 1], c="gray", s=10, alpha=1, label="Data samples")
 
     ax_main.set_title(title)
     ax_main.set_xlabel("x")
