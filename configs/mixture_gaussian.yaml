@@ -1,0 +1,35 @@
+experiment_name: mixture_gaussian
+seed: 567
+data:
+  means:
+    - [4,4]
+    - [-4,4]
+    - [4,-4]
+    - [-4,-4]
+  covs:
+    - [[1, 0], [0, 1]]
+    - [[1, 0], [0, 1]]
+    - [[1, 0], [0, 1]]
+    - [[1, 0], [0, 1]]
+  weights:
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+  num_samples: 1000
+mcmc_samples:
+  - 500
+burnin:
+  - 100
+n_batches:
+  - 5
+step_size:
+  - 0.01
+  - 0.05
+init_m:
+  - identity
+  - [10, 0.1]
+mdecay:
+  - 0.05
+mresampling:
+  - 0.01

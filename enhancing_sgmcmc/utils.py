@@ -66,10 +66,29 @@ def gmm_logprob_data(position, samples, reg=1.0):
     return jax.nn.logsumexp(kernel_values) - jnp.log(len(samples))
 
 
-def gmm_grad_estimator(position, samples, y=None):
+def gmm_grad_estimator(position, samples):
     """Gradient estimator using data samples (batch size agnostic)."""
     logprob = gmm_logprob_data(position, samples)
     return logprob, jax.grad(gmm_logprob_data)(position, samples)
+
+
+def approximate_fisher_information(data, point=None, batch_size=100, diagonal_only=False, seed=0):
+    key = jax.random.PRNGKey(seed)
+
+    if point is None:
+        point = jnp.mean(data, axis=0)
+
+    if batch_size < len(data):
+        batch = generate_minibatch(jax.random.split(key)[1], batch_size, data)
+    else:
+        batch = data
+
+    _, grad = gmm_grad_estimator(point, batch)
+
+    if diagonal_only:
+        return grad**2
+    else:
+        return jnp.outer(grad, grad)
 
 
 def generate_minibatch(key, minibatch_size, all_samples):

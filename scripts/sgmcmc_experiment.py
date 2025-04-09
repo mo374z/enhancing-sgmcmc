@@ -29,6 +29,11 @@ def process_init_m(value):
         return jnp.array(value)
 
 
+def jax_array_representer(dumper, data):
+    array_str = jnp.array2string(data, separator=", ")
+    return dumper.represent_scalar("!jaxarray", array_str)
+
+
 def run_experiments(config_path):
     """Run experiments based on config file."""
     with open(config_path, "r") as f:
@@ -130,6 +135,8 @@ def run_experiments(config_path):
         fig.savefig(plot_path, bbox_inches="tight")
         plt.close(fig)
 
+        yaml.add_representer(jnp.ndarray, jax_array_representer)
+
         # Save experiment metadata
         metadata = {
             "experiment_id": exp_id,
@@ -142,17 +149,24 @@ def run_experiments(config_path):
                 "mresampling": mresampling,
             },
             "data": {
-                "means": means.tolist(),
-                "covs": covs.tolist(),
+                "means": [m.tolist() for m in means],
+                "covs": [cov.tolist() for cov in covs],
                 "weights": weights.tolist(),
                 "n_samples": n_samples,
             },
             "results": {
                 "trajectory_path": str(trajectory_path),
                 "plot_path": str(plot_path),
-                "runtime_seconds": end_time - start_time,
+                "runtime_seconds": (end_time - start_time).total_seconds(),
             },
         }
+
+        def represent_list_compactly(dumper, data):
+            if all(isinstance(item, list) for item in data):
+                return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
+            return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=False)
+
+        yaml.add_representer(list, represent_list_compactly)
 
         metadata_path = results_dir / exp_id / "metadata.yaml"
         with open(metadata_path, "w") as f:

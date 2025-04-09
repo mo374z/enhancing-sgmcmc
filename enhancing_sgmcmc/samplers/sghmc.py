@@ -107,8 +107,8 @@ class SGHMC:
     ) -> State:
         """Update gradient values."""
         max_grad = 1e6  # Gradient clipping threshold
-        x, y = minibatch
-        _, grad = self._grad_estimator(state.position, x, y)
+        x, _ = minibatch
+        _, grad = self._grad_estimator(state.position, x)
         state.logdensity_grad = jax.tree.map(
             lambda g: jnp.where(jnp.isnan(g), 0.0, jnp.clip(g, -max_grad, max_grad)),
             grad,
