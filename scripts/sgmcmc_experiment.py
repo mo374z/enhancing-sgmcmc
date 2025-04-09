@@ -113,7 +113,6 @@ def run_experiments(config_path):
         trajectory_path = results_dir / exp_id / "trajectory.npy"
         with open(trajectory_path, "wb") as f:
             np.save(f, np.array(trajectory))
-
         # Plot and save figure
         fig, ax = plot_gmm_sampling(
             trajectory=trajectory,
