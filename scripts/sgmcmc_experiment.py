@@ -51,12 +51,12 @@ def run_experiments(config_path):
         seed=seed, means=means, covs=covs, weights=weights, n_samples=n_samples
     )
 
-    init_m_values = config.get("init_m")
     step_size_values = config.get("step_size")
-    mdecay_values = config.get("mdecay")
     burnin_values = config.get("burnin")
     mcmc_samples = config.get("mcmc_samples")
     n_batches_values = config.get("n_batches")
+    init_m_values = config.get("init_m")
+    mdecay_values = config.get("mdecay")
     mresampling_values = config.get("mresampling")
 
     # Process init_m values

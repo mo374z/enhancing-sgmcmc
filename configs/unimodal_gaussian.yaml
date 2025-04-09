@@ -22,7 +22,4 @@ init_m:
 mdecay:
   - 0.05
 mresampling:
-
-
-
   - 0.01
