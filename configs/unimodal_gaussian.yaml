@@ -15,7 +15,8 @@ burnin:
 n_batches:
   - 5
 step_size:
-  - 0.02
+  - 0.01
+  - 0.05
 init_m:
   - identity
   - [10, 0.1]

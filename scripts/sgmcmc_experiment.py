@@ -127,7 +127,7 @@ def run_experiments(config_path):
         )
 
         plot_path = results_dir / exp_id / "plot.png"
-        fig.savefig(plot_path)
+        fig.savefig(plot_path, bbox_inches="tight")
         plt.close(fig)
 
         # Save experiment metadata
