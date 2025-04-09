@@ -82,7 +82,7 @@ def run_sequential_sghmc(
     sampler,
     init_position,
     data,
-    num_samples,
+    n_samples,
     batch_size,
     init_m=None,
     step_size=0.05,
@@ -93,12 +93,12 @@ def run_sequential_sghmc(
 ):
     """Run SGHMC with sequential control over batches."""
     state = sampler.init_state(init_position, init_m)
-    trajectory = np.zeros((num_samples, init_position.shape[0]))
+    trajectory = np.zeros((n_samples, init_position.shape[0]))
     trajectory[0] = np.array(state.position)
 
     key = jax.random.PRNGKey(seed)
 
-    for i in range(1, num_samples):
+    for i in range(1, n_samples):
         key, subkey = jax.random.split(key)
 
         batch_key, step_key = jax.random.split(subkey)
