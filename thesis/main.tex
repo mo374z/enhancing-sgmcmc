@@ -71,7 +71,7 @@
 \usepackage{algpseudocode}  % for pseudocode: \begin{algorithmic} ... \end{algorithmic}
 
 %% acronyms
-%\usepackage[printonlyused]{acronym}
+\usepackage[printonlyused]{acronym}
 
 %% math
 \usepackage{amsmath}  % for \DeclareMathOperator, \text, \mathbb, etc.
@@ -131,9 +131,11 @@
 %% glossaries, load after hyperref
 \usepackage{ragged2e}  % for \Centering, \RaggedLeft and \RaggedRight used in glossary entries
 % this creates the 'list of acronyms'. Remove 'nonumberlist' to include a list of forward references to where the acronyms occur in the list of acronyms.
-\usepackage[toc,acronyms,nonumberlist]{glossaries}
+\usepackage[acronym,toc,nonumberlist]{glossaries}
 \makeglossaries
-\input{definitions/acronyms}
+\newacronym{BNN}{BNN}{Bayesian neural network}
+\newacronym{MCMC}{MCMC}{Markov chain Monte Carlo}
+\newacronym{SGHMC}{SGHMC}{Stochastic gradient Hamiltonian Monte Carlo}
 
 \usepackage[all,defaultlines=3]{nowidow}  % prevent widows and orphans
 
@@ -241,12 +243,6 @@
 \fi
 \printglossary[type=\acronymtype,title=List of Acronyms]
 
-% TODO: how to do short captions in the list of figures etc? \caption[shortcap]{longcaaaaap}
-% TODO: glossaries, notation, abbreviations
-%\printglossaries
-%\listofabbreviations
-%\listofnomenclature
-
 % actual content
 \mainmatter
 \include{chapters/10_introduction}
@@ -299,7 +295,7 @@ I further declare that this thesis has not been submitted to any other examinati
 \hfill
 \begin{tabular}{@{}p{6cm}@{}}
 \dotfill \\
-\hspace*{0.5cm}\theauthor \\
+\hspace*{0.5cm}\theauthor\\
 \end{tabular}
 \end{center}
 \end{document}
