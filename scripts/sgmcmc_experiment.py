@@ -18,13 +18,14 @@ from enhancing_sgmcmc.utils import (
 )
 
 
-def process_init_m(value):
+def process_init_m(value, init_position, data):
     """Process the init_m value from the config file."""
     if value == "identity":
         return jnp.array([1.0, 1.0])
     elif value == "fisher":
-        # TODO: Implement Fisher information matrix calculation
-        return jnp.array([0.1, 0.1])
+        # diagonal approximation of the FIM using the squared gradients
+        appr_, grad = gmm_grad_estimator(init_position, data)
+        return jnp.sqrt(jnp.mean(grad**2, axis=0))
     else:
         return jnp.array(value)
 
@@ -41,6 +42,7 @@ def run_experiments(config_path):
 
     experiment_name = config.get("experiment_name")
     seed = config.get("seed")
+    verbosity = config.get("verbosity")
 
     results_dir = Path(f"results/{experiment_name}")
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -56,6 +58,11 @@ def run_experiments(config_path):
         seed=seed, means=means, covs=covs, weights=weights, n_samples=n_samples
     )
 
+    # real fisher information matrix
+    # inverse of the covariance matrix
+    print("Analytical FIM:")
+    print(jnp.linalg.inv(covs))
+
     step_size_values = config.get("step_size")
     burnin_values = config.get("burnin")
     mcmc_samples = config.get("mcmc_samples")
@@ -63,11 +70,12 @@ def run_experiments(config_path):
     init_m_values = config.get("init_m")
     mdecay_values = config.get("mdecay")
     mresampling_values = config.get("mresampling")
+    init_position = jnp.array(config.get("init_position"))
 
     # Process init_m values
     processed_init_m = []
     for im in init_m_values:
-        processed_init_m.append(process_init_m(im))
+        processed_init_m.append(process_init_m(im, init_position, samples))
 
     param_grid = list(
         product(
@@ -84,14 +92,15 @@ def run_experiments(config_path):
     print(param_grid)
 
     sampler = SGHMC(gmm_grad_estimator)
-    init_position = jnp.array([0.0, 0.0])
 
     # Run experiments for each parameter combination
     for i, (init_m, step_size, mdecay, burnin, mcmc_samples, n_batches, mresampling) in enumerate(
         param_grid
     ):
-        print(f"Running experiment {i + 1}/{len(param_grid)}:")
-        print(f"  init_m: {init_m}, step_size: {step_size}, mdecay: {mdecay}")
+        if verbosity > 0:
+            print(f"Running experiment {i + 1}/{len(param_grid)}:")
+        if verbosity > 1:
+            print(f"init_m:\n {init_m} \n\n step_size: {step_size} \n\n mdecay: {mdecay}")
 
         # Run SGHMC
         start_time = datetime.now()
@@ -172,9 +181,10 @@ def run_experiments(config_path):
         with open(metadata_path, "w") as f:
             yaml.dump(metadata, f)
 
-        print(f"Completed experiment {i + 1} in {end_time - start_time} seconds")
-        print(f"Results saved to {results_dir}")
-        print("-" * 50)
+        if verbosity > 0:
+            print(f"Completed experiment {i + 1} in {end_time - start_time} seconds")
+            print(f"Results saved to {results_dir}")
+            print("-" * 50)
 
 
 def main():
