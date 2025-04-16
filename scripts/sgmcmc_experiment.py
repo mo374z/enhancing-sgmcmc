@@ -25,7 +25,7 @@ def process_init_m(value, init_position, data):
     elif value == "fisher":
         # diagonal approximation of the FIM using the squared gradients
         appr_, grad = gmm_grad_estimator(init_position, data)
-        return jnp.sqrt(jnp.mean(grad**2, axis=0))
+        return 1 / jnp.sqrt(grad**2)
     else:
         return jnp.array(value)
 
@@ -58,11 +58,6 @@ def run_experiments(config_path):
         seed=seed, means=means, covs=covs, weights=weights, n_samples=n_samples
     )
 
-    # real fisher information matrix
-    # inverse of the covariance matrix
-    print("Analytical FIM:")
-    print(jnp.linalg.inv(covs))
-
     step_size_values = config.get("step_size")
     burnin_values = config.get("burnin")
     mcmc_samples = config.get("mcmc_samples")
@@ -89,8 +84,6 @@ def run_experiments(config_path):
         )
     )
 
-    print(param_grid)
-
     sampler = SGHMC(gmm_grad_estimator)
 
     # Run experiments for each parameter combination
@@ -100,7 +93,7 @@ def run_experiments(config_path):
         if verbosity > 0:
             print(f"Running experiment {i + 1}/{len(param_grid)}:")
         if verbosity > 1:
-            print(f"init_m:\n {init_m} \n\n step_size: {step_size} \n\n mdecay: {mdecay}")
+            print(f"init_m: {init_m} \nstep_size: {step_size} \nmdecay: {mdecay}")
 
         # Run SGHMC
         start_time = datetime.now()
