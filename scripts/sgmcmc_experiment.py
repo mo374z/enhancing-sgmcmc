@@ -42,142 +42,177 @@ def run_experiments(config_path):
 
     experiment_name = config.get("experiment_name")
     seed = config.get("seed")
-    verbosity = config.get("verbosity")
+    verbosity = config.get("verbosity", 1)  # Default to 1 if not provided
 
     results_dir = Path(f"results/{experiment_name}")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     data_config = config.get("data")
-    means = jnp.array(data_config.get("means"))
-    covs = jnp.array(data_config.get("covs"))
-    weights = jnp.array(data_config.get("weights"))
+    all_means = data_config.get("means", [])
+    all_covs = data_config.get("covs", [])
+    all_weights = data_config.get("weights", [])
     n_samples = data_config.get("num_samples")
 
-    # Generate data
-    samples = generate_gmm_data(
-        seed=seed, means=means, covs=covs, weights=weights, n_samples=n_samples
-    )
-
+    # Get hyperparameters for grid search
     step_size_values = config.get("step_size")
     burnin_values = config.get("burnin")
-    mcmc_samples = config.get("mcmc_samples")
+    mcmc_samples_values = config.get("mcmc_samples")
     n_batches_values = config.get("n_batches")
     init_m_values = config.get("init_m")
     mdecay_values = config.get("mdecay")
     mresampling_values = config.get("mresampling")
-    init_position = jnp.array(config.get("init_position"))
-
-    # Process init_m values
-    processed_init_m = []
-    for im in init_m_values:
-        processed_init_m.append(process_init_m(im, init_position, samples))
-
-    param_grid = list(
-        product(
-            processed_init_m,
-            step_size_values,
-            mdecay_values,
-            burnin_values,
-            mcmc_samples,
-            n_batches_values,
-            mresampling_values,
-        )
-    )
+    init_position = jnp.array(config.get("init_position", [0.0, 0.0]))  # Default if not provided
 
     sampler = SGHMC(gmm_grad_estimator)
 
-    # Run experiments for each parameter combination
-    for i, (init_m, step_size, mdecay, burnin, mcmc_samples, n_batches, mresampling) in enumerate(
-        param_grid
-    ):
-        if verbosity > 0:
-            print(f"Running experiment {i + 1}/{len(param_grid)}:")
-        if verbosity > 1:
-            print(f"init_m: {init_m} \nstep_size: {step_size} \nmdecay: {mdecay}")
+    # Outer loop over data configurations
+    for data_idx, (means, covs, weights) in enumerate(zip(all_means, all_covs, all_weights)):
+        means = jnp.array(means)
+        covs = jnp.array(covs)
+        weights = jnp.array(weights)
 
-        # Run SGHMC
-        start_time = datetime.now()
-        trajectory = run_sequential_sghmc(
-            sampler=sampler,
-            data=samples,
-            init_position=init_position,
-            init_m=init_m,
-            batch_size=len(samples) // n_batches,
-            n_samples=n_samples,
-            step_size=step_size,
-            mdecay=mdecay,
-            num_integration_steps=1,
-            mresampling=mresampling,
-            seed=seed,
-        )
-        end_time = datetime.now()
-
-        # Create experiment ID from current timestamp
-        exp_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        (results_dir / exp_id).mkdir(parents=True, exist_ok=True)
-
-        # Save trajectory
-        trajectory_path = results_dir / exp_id / "trajectory.npy"
-        with open(trajectory_path, "wb") as f:
-            np.save(f, np.array(trajectory))
-        # Plot and save figure
-        fig, ax = plot_gmm_sampling(
-            trajectory=trajectory,
-            samples=samples,
+        # Generate data for this configuration
+        samples = generate_gmm_data(
+            seed=seed + data_idx,  # Vary seed slightly for each data config
             means=means,
             covs=covs,
             weights=weights,
-            gaussian_mixture_logprob=gaussian_mixture_logprob,
-            title="SGHMC Sampling",
-            burnin=burnin,
-            figsize=(10, 5),
+            n_samples=n_samples,
         )
 
-        plot_path = results_dir / exp_id / "plot.png"
-        fig.savefig(plot_path, bbox_inches="tight")
-        plt.close(fig)
-
-        yaml.add_representer(jnp.ndarray, jax_array_representer)
-
-        # Save experiment metadata
-        metadata = {
-            "experiment_id": exp_id,
-            "parameters": {
-                "init_m": init_m.tolist(),
-                "step_size": step_size,
-                "mdecay": mdecay,
-                "burnin": burnin,
-                "n_batches": n_batches,
-                "mresampling": mresampling,
-            },
-            "data": {
-                "means": [m.tolist() for m in means],
-                "covs": [cov.tolist() for cov in covs],
-                "weights": weights.tolist(),
-                "n_samples": n_samples,
-            },
-            "results": {
-                "trajectory_path": str(trajectory_path),
-                "plot_path": str(plot_path),
-                "runtime_seconds": (end_time - start_time).total_seconds(),
-            },
-        }
-
-        def represent_list_compactly(dumper, data):
-            if all(isinstance(item, list) for item in data):
-                return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
-            return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=False)
-
-        yaml.add_representer(list, represent_list_compactly)
-
-        metadata_path = results_dir / exp_id / "metadata.yaml"
-        with open(metadata_path, "w") as f:
-            yaml.dump(metadata, f)
-
+        # Print analytical FIM for this data configuration
         if verbosity > 0:
-            print(f"Completed experiment {i + 1} in {end_time - start_time} seconds")
-            print(f"Results saved to {results_dir}")
-            print("-" * 50)
+            print(f"Data configuration {data_idx + 1}/{len(all_means)}:")
+            print("Analytical FIM:")
+            for cov in covs:
+                print(jnp.linalg.inv(cov))
+
+        # Process init_m values for this data configuration
+        processed_init_m = []
+        for im in init_m_values:
+            processed_init_m.append(process_init_m(im, init_position, samples))
+
+        # Create parameter grid for this data configuration
+        param_grid = list(
+            product(
+                processed_init_m,
+                step_size_values,
+                mdecay_values,
+                burnin_values,
+                mcmc_samples_values,
+                n_batches_values,
+                mresampling_values,
+            )
+        )
+
+        if verbosity > 1:
+            print(f"Parameter grid for data config {data_idx + 1}:")
+            print(param_grid)
+
+        # Run experiments for each parameter combination
+        for i, (
+            init_m,
+            step_size,
+            mdecay,
+            burnin,
+            mcmc_samples,
+            n_batches,
+            mresampling,
+        ) in enumerate(param_grid):
+            if verbosity > 0:
+                print(
+                    f"Running experiment {i + 1}/{len(param_grid)} for data config {data_idx + 1}:"
+                )
+            if verbosity > 1:
+                print(f"init_m:\n {init_m} \n\n step_size: {step_size} \n\n mdecay: {mdecay}")
+
+            # Run SGHMC
+            start_time = datetime.now()
+            trajectory = run_sequential_sghmc(
+                sampler=sampler,
+                data=samples,
+                init_position=init_position,
+                init_m=init_m,
+                batch_size=len(samples) // n_batches,
+                n_samples=mcmc_samples,  # Use mcmc_samples not n_samples here
+                step_size=step_size,
+                mdecay=mdecay,
+                num_integration_steps=1,
+                mresampling=mresampling,
+                seed=seed + data_idx + i,  # Ensure unique seeds
+            )
+            end_time = datetime.now()
+
+            # Create experiment ID from current timestamp
+            exp_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+            exp_dir = results_dir / f"data_{data_idx}_{exp_id}"
+            exp_dir.mkdir(parents=True, exist_ok=True)
+
+            # Save trajectory
+            trajectory_path = exp_dir / "trajectory.npy"
+            with open(trajectory_path, "wb") as f:
+                np.save(f, np.array(trajectory))
+
+            # Plot and save figure
+            fig, ax = plot_gmm_sampling(
+                trajectory=trajectory,
+                samples=samples,
+                means=means,
+                covs=covs,
+                weights=weights,
+                gaussian_mixture_logprob=gaussian_mixture_logprob,
+                title=f"SGHMC Sampling - Data Config {data_idx + 1}",
+                burnin=burnin,
+                figsize=(10, 5),
+            )
+
+            plot_path = exp_dir / "plot.png"
+            fig.savefig(plot_path, bbox_inches="tight")
+            plt.close(fig)
+
+            yaml.add_representer(jnp.ndarray, jax_array_representer)
+
+            # Save experiment metadata
+            metadata = {
+                "experiment_id": exp_id,
+                "data_config_id": data_idx,
+                "parameters": {
+                    "init_m": init_m.tolist(),
+                    "step_size": step_size,
+                    "mdecay": mdecay,
+                    "burnin": burnin,
+                    "mcmc_samples": mcmc_samples,
+                    "n_batches": n_batches,
+                    "mresampling": mresampling,
+                },
+                "data": {
+                    "means": [m.tolist() for m in means],
+                    "covs": [cov.tolist() for cov in covs],
+                    "weights": weights.tolist(),
+                    "n_samples": n_samples,
+                },
+                "results": {
+                    "trajectory_path": str(trajectory_path),
+                    "plot_path": str(plot_path),
+                    "runtime_seconds": (end_time - start_time).total_seconds(),
+                },
+            }
+
+            def represent_list_compactly(dumper, data):
+                if all(isinstance(item, list) for item in data):
+                    return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
+                return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=False)
+
+            yaml.add_representer(list, represent_list_compactly)
+
+            metadata_path = exp_dir / "metadata.yaml"
+            with open(metadata_path, "w") as f:
+                yaml.dump(metadata, f)
+
+            if verbosity > 0:
+                print(f"Completed experiment {i + 1} in {end_time - start_time} seconds")
+                print(f"Results saved to {exp_dir}")
+                print("-" * 50)
 
 
 def main():
