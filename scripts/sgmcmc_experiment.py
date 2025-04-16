@@ -83,6 +83,7 @@ def run_experiments(config_path):
         # Print analytical FIM for this data configuration
         if verbosity > 0:
             print(f"Data configuration {data_idx + 1}/{len(all_means)}:")
+        if verbosity > 1:
             print("Analytical FIM:")
             for cov in covs:
                 print(jnp.linalg.inv(cov))
@@ -121,7 +122,7 @@ def run_experiments(config_path):
         ) in enumerate(param_grid):
             if verbosity > 0:
                 print(
-                    f"Running experiment {i + 1}/{len(param_grid)} for data config {data_idx + 1}:"
+                    f"Running experiment {i + 1}/{len(param_grid)} for data config {data_idx + 1}"
                 )
             if verbosity > 1:
                 print(f"init_m:\n {init_m} \n\n step_size: {step_size} \n\n mdecay: {mdecay}")
