@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 from datetime import datetime
 from itertools import product
 from pathlib import Path
@@ -52,6 +53,11 @@ def run_experiments(config_path):
     all_covs = data_config.get("covs")
     all_weights = data_config.get("weights")
     n_samples = data_config.get("num_samples")
+
+    plot_config = config.get("plot")
+    if plot_config is not None:
+        xlim = plot_config.get("xlim", None)
+        ylim = plot_config.get("ylim", None)
 
     # Get hyperparameters for grid search
     step_size_values = config.get("step_size")
@@ -155,9 +161,15 @@ def run_experiments(config_path):
             )
             end_time = datetime.now()
 
+            # create a reproducible id for the dataset
+            dataset_str = "".join(
+                [str(m) + str(c) + str(w) for m, c, w in zip(means, covs, weights)]
+            )
+            dataset_id = hashlib.md5(dataset_str.encode()).hexdigest()[:6]
+
             # Create experiment ID from current timestamp
             exp_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-            exp_dir = results_dir / f"data_{data_idx}/{exp_id}"
+            exp_dir = results_dir / f"data_{dataset_id}/{exp_id}"
             exp_dir.mkdir(parents=True, exist_ok=True)
 
             # Save trajectory
@@ -175,6 +187,8 @@ def run_experiments(config_path):
                 gaussian_mixture_logprob=gaussian_mixture_logprob,
                 title=f"SGHMC Sampling - Data Config {data_idx + 1}",
                 burnin=burnin,
+                xlim=xlim,
+                ylim=ylim,
                 figsize=(10, 5),
             )
 

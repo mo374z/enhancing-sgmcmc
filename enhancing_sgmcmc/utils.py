@@ -88,7 +88,7 @@ def run_sequential_sghmc(
     step_size=0.05,
     mdecay=0.05,
     num_integration_steps=1,
-    mresampling=0.01,
+    mresampling=0.0,
     seed=0,
 ):
     """Run SGHMC with sequential control over batches."""
@@ -193,8 +193,8 @@ def plot_gmm_sampling(
                 point = jnp.array([X[i, j], Y[i, j]])
                 Z[i, j] = np.exp(gaussian_mixture_logprob(point, means, covs, weights))
 
+        # QUESTION: shouldnt we plot the logprob since this is what we are optimizing?
         ax_main.contour(X, Y, Z, levels=15, cmap="coolwarm_r", alpha=0.5)
-        # TODO: shouldnt we plot the logprob?
 
     # Plot Gaussian component means if requested
     if show_means and means is not None:
@@ -263,7 +263,7 @@ def plot_gmm_sampling(
             labels2,
             loc="lower center",
             bbox_to_anchor=(0.75, -0.1),
-            ncol=3,
+            ncol=len(labels2),
             frameon=False,
             fontsize=8,
         )
@@ -286,7 +286,7 @@ def plot_gmm_sampling(
             labels1,
             loc="lower center",
             bbox_to_anchor=(0.25, -0.1),
-            ncol=3,
+            ncol=3 if len(labels1) > 4 else 2,
             frameon=False,
             fontsize=8,
         )
