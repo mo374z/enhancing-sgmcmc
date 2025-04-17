@@ -48,9 +48,9 @@ def run_experiments(config_path):
     results_dir.mkdir(parents=True, exist_ok=True)
 
     data_config = config.get("data")
-    all_means = data_config.get("means", [])
-    all_covs = data_config.get("covs", [])
-    all_weights = data_config.get("weights", [])
+    all_means = data_config.get("means")
+    all_covs = data_config.get("covs")
+    all_weights = data_config.get("weights")
     n_samples = data_config.get("num_samples")
 
     # Get hyperparameters for grid search
@@ -65,11 +65,22 @@ def run_experiments(config_path):
 
     sampler = SGHMC(gmm_grad_estimator)
 
+    data_grid = list(
+        product(
+            all_means,
+            all_covs,
+            all_weights,
+        )
+    )
+
     # Outer loop over data configurations
-    for data_idx, (means, covs, weights) in enumerate(zip(all_means, all_covs, all_weights)):
+    for data_idx, (means, covs, weights) in enumerate(data_grid):
         means = jnp.array(means)
         covs = jnp.array(covs)
         weights = jnp.array(weights)
+
+        if verbosity > 1:
+            print(f"Generating data with means: {means}, covs: {covs}, weights: {weights}")
 
         # Generate data for this configuration
         samples = generate_gmm_data(
@@ -82,7 +93,7 @@ def run_experiments(config_path):
 
         # Print analytical FIM for this data configuration
         if verbosity > 0:
-            print(f"Data configuration {data_idx + 1}/{len(all_means)}:")
+            print(f"Data configuration {data_idx + 1}/{len(data_grid)}:")
         if verbosity > 1:
             print("Analytical FIM:")
             for cov in covs:
@@ -125,7 +136,7 @@ def run_experiments(config_path):
                     f"Running experiment {i + 1}/{len(param_grid)} for data config {data_idx + 1}"
                 )
             if verbosity > 1:
-                print(f"init_m:\n {init_m} \n\n step_size: {step_size} \n\n mdecay: {mdecay}")
+                print(f"init_m: {init_m} \n step_size: {step_size} \n mdecay: {mdecay}")
 
             # Run SGHMC
             start_time = datetime.now()
@@ -146,7 +157,7 @@ def run_experiments(config_path):
 
             # Create experiment ID from current timestamp
             exp_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-            exp_dir = results_dir / f"data_{data_idx}_{exp_id}"
+            exp_dir = results_dir / f"data_{data_idx}/{exp_id}"
             exp_dir.mkdir(parents=True, exist_ok=True)
 
             # Save trajectory
