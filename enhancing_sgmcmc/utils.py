@@ -66,6 +66,7 @@ def gmm_logprob_data(position, samples, reg=1.0):
     return jax.nn.logsumexp(kernel_values) - jnp.log(len(samples))
 
 
+# QUESTION: can i estimate the gradients this way?
 def gmm_grad_estimator(position, samples):
     """Gradient estimator using data samples (batch size agnostic)."""
     logprob = gmm_logprob_data(position, samples)
@@ -78,6 +79,7 @@ def generate_minibatch(key, minibatch_size, all_samples):
     return all_samples[indices]
 
 
+# QUESTION: just double checking here - is the usage of the sampler correct?
 def run_sequential_sghmc(
     sampler,
     init_position,

@@ -19,6 +19,7 @@ from enhancing_sgmcmc.utils import (
 )
 
 
+# QUESTION: Can is the fisher approximation valid this way?
 def process_init_m(value, init_position, data):
     """Process the init_m value from the config file."""
     if value == "identity":
@@ -185,7 +186,7 @@ def run_experiments(config_path):
                 covs=covs,
                 weights=weights,
                 gaussian_mixture_logprob=gaussian_mixture_logprob,
-                title=f"SGHMC Sampling - Data Config {data_idx + 1}",
+                title="SGHMC Sampling",
                 burnin=burnin,
                 xlim=xlim,
                 ylim=ylim,
@@ -193,6 +194,9 @@ def run_experiments(config_path):
             )
 
             plot_path = exp_dir / "plot.png"
+            fig.suptitle(
+                f"Experiment Results\n(Step size: {step_size}, Momentum Decay: {mdecay}, Preconditioning: {init_m})",
+            )
             fig.savefig(plot_path, bbox_inches="tight")
             plt.close(fig)
 
