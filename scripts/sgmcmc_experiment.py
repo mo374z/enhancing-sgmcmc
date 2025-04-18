@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
+from enhancing_sgmcmc.metrics import compute_metrics
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
 from enhancing_sgmcmc.utils import (
     gaussian_mixture_logprob,
@@ -44,7 +45,7 @@ def run_experiments(config_path):
 
     experiment_name = config.get("experiment_name")
     seed = config.get("seed")
-    verbosity = config.get("verbosity", 1)  # Default to 1 if not provided
+    verbosity = config.get("verbosity", 1)
 
     results_dir = Path(f"results/{experiment_name}")
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -202,6 +203,22 @@ def run_experiments(config_path):
 
             yaml.add_representer(jnp.ndarray, jax_array_representer)
 
+            metrics = compute_metrics(
+                samples=trajectory[burnin:],
+                true_samples=samples,
+                logprob_func=gaussian_mixture_logprob,
+                n_bins=20,
+                range_bounds=None,
+                sample_weights=None,
+                true_weights=None,
+                verbosity=verbosity,
+                means=means,
+                covs=covs,
+                weights=weights,
+            )
+            if verbosity > 0:
+                print(("Successfully computed metrics"))
+
             # Save experiment metadata
             metadata = {
                 "experiment_id": exp_id,
@@ -225,6 +242,7 @@ def run_experiments(config_path):
                     "trajectory_path": str(trajectory_path),
                     "plot_path": str(plot_path),
                     "runtime_seconds": (end_time - start_time).total_seconds(),
+                    "metrics": metrics,
                 },
             }
 

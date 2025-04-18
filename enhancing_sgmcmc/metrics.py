@@ -1,12 +1,15 @@
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from scipy.spatial.distance import jensenshannon
 from scipy.stats import wasserstein_distance_nd
 
+# TODO: try to do as much as possible in jax
 
-def compute_wasserstein_distance(
+
+def wasserstein_distance(
     samples: np.ndarray,
     true_samples: np.ndarray,
     sample_weights: Optional[np.ndarray] = None,
@@ -35,7 +38,7 @@ def compute_wasserstein_distance(
     return wasserstein_distance_nd(samples, true_samples, sample_weights, true_weights)
 
 
-def compute_jensen_shannon_divergence(
+def jensen_shannon_divergence(
     samples: np.ndarray,
     true_samples: np.ndarray,
     n_bins: Union[int, Tuple[int, ...]] = 20,
@@ -56,26 +59,7 @@ def compute_jensen_shannon_divergence(
     samples = np.array(samples)
     true_samples = np.array(true_samples)
 
-    # For 1D case
-    if samples.shape[1] == 1:
-        # Create histograms
-        hist_samples, bin_edges = np.histogram(
-            samples, bins=n_bins, range=range_bounds, density=True
-        )
-        hist_true, _ = np.histogram(true_samples, bins=bin_edges, density=True)
-
-        # Ensure non-zero probabilities for numerical stability
-        hist_samples = np.clip(hist_samples, 1e-10, None)
-        hist_true = np.clip(hist_true, 1e-10, None)
-
-        # Normalize
-        hist_samples = hist_samples / np.sum(hist_samples)
-        hist_true = hist_true / np.sum(hist_true)
-
-        return jensenshannon(hist_samples, hist_true)
-
-    # For 2D case (most common in toy examples)
-    elif samples.shape[1] == 2:
+    if samples.shape[1] == 2:
         if isinstance(n_bins, int):
             n_bins = (n_bins, n_bins)
 
@@ -109,13 +93,15 @@ def compute_jensen_shannon_divergence(
         return jensenshannon(hist_samples_flat, hist_true_flat)
 
     else:
-        raise ValueError(
-            "Jensen-Shannon divergence calculation is only implemented for 1D and 2D data"
-        )
+        raise ValueError("Jensen-Shannon divergence calculation is only implemented for 2D data")
 
 
-def compute_average_log_likelihood(
-    samples: np.ndarray, logprob_func: Callable, *args, **kwargs
+def avg_log_likelihood(
+    samples: jnp.ndarray,
+    logprob_func: Callable,
+    means: jnp.ndarray,
+    covs: jnp.ndarray,
+    weights: jnp.ndarray,
 ) -> float:
     """
     Compute the average log likelihood of samples under the true distribution.
@@ -123,36 +109,35 @@ def compute_average_log_likelihood(
     Args:
         samples: Samples from the MCMC sampler, shape (n_samples, dim)
         logprob_func: Function to compute log probability of a sample
-        *args, **kwargs: Additional arguments to pass to logprob_func
+        means: Mean vectors of the mixture components, shape (n_components, dim)
+        covs: Covariance matrices of the mixture components, shape (n_components, dim, dim)
+        weights: Weights of the mixture components, shape (n_components,)
 
     Returns:
         The average log likelihood of the samples
     """
-    # Ensure samples is a numpy array (convert from JAX array if needed)
-    samples = np.array(samples)
 
-    # Compute log likelihood for each sample
-    log_likelihoods = np.zeros(len(samples))
+    def single_sample_logprob(sample):
+        return logprob_func(sample, means, covs, weights)
 
-    for i, sample in enumerate(samples):
-        # Convert sample to JAX array for the logprob function
-        jax_sample = jnp.array(sample)
-        log_likelihoods[i] = logprob_func(jax_sample, *args, **kwargs)
+    log_likelihoods = jax.vmap(single_sample_logprob)(samples)
 
-    # Return the average log likelihood
-    return np.mean(log_likelihoods)
+    return float(jnp.mean(log_likelihoods))
 
 
-def compute_all_metrics(
+def compute_metrics(
     samples: np.ndarray,
-    true_samples: np.ndarray,
-    logprob_func: Callable,
-    n_bins: int = 20,
+    true_samples: Optional[np.ndarray],
+    logprob_func: Optional[Callable],
+    n_bins: Optional[int] = 20,
     range_bounds: Optional[Tuple[float, float]] = None,
     sample_weights: Optional[np.ndarray] = None,
     true_weights: Optional[np.ndarray] = None,
-    *logprob_args,
-    **logprob_kwargs
+    means: Optional[np.ndarray] = None,
+    covs: Optional[np.ndarray] = None,
+    weights: Optional[np.ndarray] = None,
+    metrics: List[str] = ["wasserstein", "jensen_shannon", "avg_log_likelihood"],
+    verbosity: int = 0,
 ) -> dict:
     """
     Compute all available metrics between sampler output and true distribution.
@@ -165,31 +150,31 @@ def compute_all_metrics(
         range_bounds: Optional bounds for histogram binning
         sample_weights: Optional weights for the samples (for Wasserstein)
         true_weights: Optional weights for the true samples (for Wasserstein)
-        *logprob_args, **logprob_kwargs: Additional arguments for logprob_func
+        *logprob_args: Additional arguments for logprob_func
 
     Returns:
         Dictionary containing all computed metrics
     """
-    # Remove burn-in samples if specified in kwargs
-    burnin = logprob_kwargs.pop("burnin", 0)
-    if burnin > 0:
-        samples = samples[burnin:]
 
-    # Compute all metrics
-    w_dist = compute_wasserstein_distance(samples, true_samples, sample_weights, true_weights)
+    if "wasserstein" in metrics:
+        w_dist = wasserstein_distance(samples, true_samples, sample_weights, true_weights)
+        if verbosity > 1:
+            print(f"Wasserstein distance: {w_dist}")
 
-    try:
-        js_div = compute_jensen_shannon_divergence(samples, true_samples, n_bins, range_bounds)
-    except ValueError:
-        # If JS divergence fails (e.g., for high dimensions), set to NaN
-        js_div = np.nan
+    if "jensen_shannon" in metrics:
+        js_div = jensen_shannon_divergence(samples, true_samples, n_bins, range_bounds)
+        if verbosity > 1:
+            print(f"Jensen-Shannon divergence: {js_div}")
 
-    avg_loglik = compute_average_log_likelihood(
-        samples, logprob_func, *logprob_args, **logprob_kwargs
-    )
+    if "avg_log_likelihood" in metrics:
+        avg_loglik = avg_log_likelihood(
+            samples, logprob_func, means=means, covs=covs, weights=weights
+        )
+        if verbosity > 1:
+            print(f"Average log likelihood: {avg_loglik}")
 
     return {
-        "wasserstein_distance": float(w_dist),
-        "jensen_shannon_divergence": float(js_div),
-        "average_log_likelihood": float(avg_loglik),
+        "wasserstein": w_dist if "wasserstein" in metrics else None,
+        "jensen_shannon": js_div if "jensen_shannon" in metrics else None,
+        "avg_log_likelihood": avg_loglik if "avg_log_likelihood" in metrics else None,
     }
