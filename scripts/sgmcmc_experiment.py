@@ -206,15 +206,10 @@ def run_experiments(config_path):
             metrics = compute_metrics(
                 samples=trajectory[burnin:],
                 true_samples=samples,
-                logprob_func=gaussian_mixture_logprob,
-                n_bins=20,
-                range_bounds=None,
-                sample_weights=None,
-                true_weights=None,
-                verbosity=verbosity,
                 means=means,
                 covs=covs,
                 weights=weights,
+                verbosity=verbosity,
             )
             if verbosity > 0:
                 print(("Successfully computed metrics"))

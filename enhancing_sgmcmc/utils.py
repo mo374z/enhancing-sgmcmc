@@ -204,6 +204,10 @@ def plot_gmm_sampling(
             ax_main.scatter(mean[0], mean[1], c="red", s=50, marker="*")
         ax_main.scatter([], [], c="red", s=50, marker="*", label="Gaussian means")
 
+    # Plot data samples if requested
+    if show_samples and samples is not None:
+        ax_main.scatter(samples[:, 0], samples[:, 1], c="gray", s=10, alpha=1, label="Data samples")
+
     # Plot MCMC trajectory if available
     if trajectory is not None:
         if burnin > 0:
@@ -269,9 +273,6 @@ def plot_gmm_sampling(
             frameon=False,
             fontsize=8,
         )
-    # Plot data samples if requested
-    if show_samples and samples is not None:
-        ax_main.scatter(samples[:, 0], samples[:, 1], c="gray", s=10, alpha=1, label="Data samples")
 
     ax_main.set_title(title)
     ax_main.set_xlabel("x")

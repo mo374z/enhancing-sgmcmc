@@ -1,3 +1,4 @@
+# QUESTION: Do you think the hyperparameters are reasonably chosen especially for SGHMC?
 experiment_name: mixture_gaussian
 seed: 567
 verbosity: 1

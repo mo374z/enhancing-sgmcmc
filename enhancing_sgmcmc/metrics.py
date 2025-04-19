@@ -1,180 +1,80 @@
-from typing import Callable, List, Optional, Tuple, Union
+from typing import List, Optional
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from scipy.spatial.distance import jensenshannon
-from scipy.stats import wasserstein_distance_nd
+from scipy.stats import wasserstein_distance
 
-# TODO: try to do as much as possible in jax
+from enhancing_sgmcmc.utils import gaussian_mixture_logprob
+
+# QUESTION: are those valid metrics and is their implementation valid (bot only approximating)
+# Especially for the wasserstein there are more accurate implementations, but they are much slower.
 
 
-def wasserstein_distance(
-    samples: np.ndarray,
-    true_samples: np.ndarray,
-    sample_weights: Optional[np.ndarray] = None,
-    true_weights: Optional[np.ndarray] = None,
-) -> float:
+def wasserstein_distance_approximation(samples: jnp.ndarray, true_samples: jnp.ndarray) -> float:
     """
-    Compute the Wasserstein distance between sampler output and true distribution.
-
-    Args:
-        samples: Samples from the MCMC sampler, shape (n_samples, dim)
-        true_samples: Samples from the true distribution, shape (n_true_samples, dim)
-        sample_weights: Optional weights for the samples (default: equal weights)
-        true_weights: Optional weights for the true samples (default: equal weights)
-
-    Returns:
-        The Wasserstein distance between the distributions
+    Approximate Wasserstein distance by computing 1D distances along each dimension and averaging.
     """
-    # Ensure the inputs are numpy arrays, not JAX arrays
-    samples = np.array(samples)
-    true_samples = np.array(true_samples)
-    if sample_weights is not None:
-        sample_weights = np.array(sample_weights)
-    if true_weights is not None:
-        true_weights = np.array(true_weights)
+    samples_np = np.array(samples)
+    true_samples_np = np.array(true_samples)
 
-    return wasserstein_distance_nd(samples, true_samples, sample_weights, true_weights)
+    dim = samples_np.shape[1]
 
+    distances = []
+    for d in range(dim):
+        dist = wasserstein_distance(samples_np[:, d], true_samples_np[:, d])
+        distances.append(dist)
 
-def jensen_shannon_divergence(
-    samples: np.ndarray,
-    true_samples: np.ndarray,
-    n_bins: Union[int, Tuple[int, ...]] = 20,
-    range_bounds: Optional[Tuple[float, float]] = None,
-) -> float:
-    """
-    Compute the Jensen-Shannon divergence between histograms of samples.
-
-    Args:
-        samples: Samples from the MCMC sampler, shape (n_samples, dim)
-        true_samples: Samples from the true distribution, shape (n_true_samples, dim)
-        n_bins: Number of bins for histogramming (per dimension)
-        range_bounds: Optional bounds for histogram binning (min, max)
-
-    Returns:
-        The Jensen-Shannon divergence between the histogrammed distributions
-    """
-    samples = np.array(samples)
-    true_samples = np.array(true_samples)
-
-    if samples.shape[1] == 2:
-        if isinstance(n_bins, int):
-            n_bins = (n_bins, n_bins)
-
-        if range_bounds is None:
-            min_x = min(np.min(samples[:, 0]), np.min(true_samples[:, 0]))
-            max_x = max(np.max(samples[:, 0]), np.max(true_samples[:, 0]))
-            min_y = min(np.min(samples[:, 1]), np.min(true_samples[:, 1]))
-            max_y = max(np.max(samples[:, 1]), np.max(true_samples[:, 1]))
-            range_bounds = [[min_x, max_x], [min_y, max_y]]
-
-        # Create 2D histograms
-        hist_samples, _, _ = np.histogram2d(
-            samples[:, 0], samples[:, 1], bins=n_bins, range=range_bounds, density=True
-        )
-        hist_true, _, _ = np.histogram2d(
-            true_samples[:, 0], true_samples[:, 1], bins=n_bins, range=range_bounds, density=True
-        )
-
-        # Flatten the 2D histograms to 1D for JS calculation
-        hist_samples_flat = hist_samples.flatten()
-        hist_true_flat = hist_true.flatten()
-
-        # Ensure non-zero probabilities for numerical stability
-        hist_samples_flat = np.clip(hist_samples_flat, 1e-10, None)
-        hist_true_flat = np.clip(hist_true_flat, 1e-10, None)
-
-        # Normalize
-        hist_samples_flat = hist_samples_flat / np.sum(hist_samples_flat)
-        hist_true_flat = hist_true_flat / np.sum(hist_true_flat)
-
-        return jensenshannon(hist_samples_flat, hist_true_flat)
-
-    else:
-        raise ValueError("Jensen-Shannon divergence calculation is only implemented for 2D data")
+    return np.mean(distances)
 
 
-def avg_log_likelihood(
+def kl_divergence_approximation(
     samples: jnp.ndarray,
-    logprob_func: Callable,
     means: jnp.ndarray,
     covs: jnp.ndarray,
     weights: jnp.ndarray,
 ) -> float:
     """
-    Compute the average log likelihood of samples under the true distribution.
+    Compute the KL divergence between the sampler output and the true distribution.
 
-    Args:
-        samples: Samples from the MCMC sampler, shape (n_samples, dim)
-        logprob_func: Function to compute log probability of a sample
-        means: Mean vectors of the mixture components, shape (n_components, dim)
-        covs: Covariance matrices of the mixture components, shape (n_components, dim, dim)
-        weights: Weights of the mixture components, shape (n_components,)
-
-    Returns:
-        The average log likelihood of the samples
+    Note: This computes the negative log-likelihood of samples under the true distribution,
+    which is related to but not exactly the KL divergence. The true KL divergence would require
+    knowing the density of the empirical distribution, which is not available.
     """
 
-    def single_sample_logprob(sample):
-        return logprob_func(sample, means, covs, weights)
+    def log_prob_for_sample(sample):
+        return gaussian_mixture_logprob(sample, means, covs, weights)
 
-    log_likelihoods = jax.vmap(single_sample_logprob)(samples)
-
-    return float(jnp.mean(log_likelihoods))
+    log_probs = jax.vmap(log_prob_for_sample)(samples)
+    return -float(jnp.mean(log_probs))
 
 
 def compute_metrics(
-    samples: np.ndarray,
-    true_samples: Optional[np.ndarray],
-    logprob_func: Optional[Callable],
-    n_bins: Optional[int] = 20,
-    range_bounds: Optional[Tuple[float, float]] = None,
-    sample_weights: Optional[np.ndarray] = None,
-    true_weights: Optional[np.ndarray] = None,
-    means: Optional[np.ndarray] = None,
-    covs: Optional[np.ndarray] = None,
-    weights: Optional[np.ndarray] = None,
-    metrics: List[str] = ["wasserstein", "jensen_shannon", "avg_log_likelihood"],
+    samples: jnp.ndarray,
+    true_samples: Optional[jnp.ndarray],
+    means: Optional[jnp.ndarray] = None,
+    covs: Optional[jnp.ndarray] = None,
+    weights: Optional[jnp.ndarray] = None,
+    metrics: List[str] = ["wasserstein", "kldivergence"],
     verbosity: int = 0,
 ) -> dict:
     """
-    Compute all available metrics between sampler output and true distribution.
-
-    Args:
-        samples: Samples from the MCMC sampler, shape (n_samples, dim)
-        true_samples: Samples from the true distribution, shape (n_true_samples, dim)
-        logprob_func: Function to compute log probability of a sample
-        n_bins: Number of bins for histogramming (for Jensen-Shannon)
-        range_bounds: Optional bounds for histogram binning
-        sample_weights: Optional weights for the samples (for Wasserstein)
-        true_weights: Optional weights for the true samples (for Wasserstein)
-        *logprob_args: Additional arguments for logprob_func
-
-    Returns:
-        Dictionary containing all computed metrics
+    Compute multiple metrics between sampler output and true distribution.
     """
+    if verbosity > 0:
+        print("Computing metrics...")
 
     if "wasserstein" in metrics:
-        w_dist = wasserstein_distance(samples, true_samples, sample_weights, true_weights)
+        w_dist = wasserstein_distance_approximation(samples, true_samples)
         if verbosity > 1:
             print(f"Wasserstein distance: {w_dist}")
 
-    if "jensen_shannon" in metrics:
-        js_div = jensen_shannon_divergence(samples, true_samples, n_bins, range_bounds)
+    if "kldivergence" in metrics:
+        kl_div = kl_divergence_approximation(samples, means=means, covs=covs, weights=weights)
         if verbosity > 1:
-            print(f"Jensen-Shannon divergence: {js_div}")
-
-    if "avg_log_likelihood" in metrics:
-        avg_loglik = avg_log_likelihood(
-            samples, logprob_func, means=means, covs=covs, weights=weights
-        )
-        if verbosity > 1:
-            print(f"Average log likelihood: {avg_loglik}")
+            print(f"KL-Divergence: {kl_div}")
 
     return {
-        "wasserstein": w_dist if "wasserstein" in metrics else None,
-        "jensen_shannon": js_div if "jensen_shannon" in metrics else None,
-        "avg_log_likelihood": avg_loglik if "avg_log_likelihood" in metrics else None,
+        "wasserstein": float(w_dist) if "wasserstein" in metrics else None,
+        "kldivergence": float(kl_div) if "kldivergence" in metrics else None,
     }
