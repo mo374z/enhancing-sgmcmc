@@ -23,7 +23,7 @@ from enhancing_sgmcmc.utils import (
 # QUESTION: Can is the fisher approximation valid this way? - ES: it is obviously quite an approximation.
 # ES: We only work with diagonal covariance matrices, so thats an obvious approximation. But to get the actual diagonal
 # empirical fisher information matrix, we would need to accumulate the squared gradients over the entire dataset.
-# practically, this is obviously not an option but we might consider it in these toy examples.
+# practically, this is obviously not an option but we might want to consider it in these toy examples.
 def process_init_m(value, init_position, data):
     """Process the init_m value from the config file."""
     if value == "identity":

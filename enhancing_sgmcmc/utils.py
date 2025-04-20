@@ -79,7 +79,7 @@ def generate_minibatch(key, minibatch_size, all_samples):
     return all_samples[indices]
 
 
-# QUESTION: just double checking here - is the usage of the sampler correct?
+# QUESTION: just double checking here - is the usage of the sampler correct? ES: yes looks good, just improve key handling
 def run_sequential_sghmc(
     sampler,
     init_position,
@@ -98,7 +98,9 @@ def run_sequential_sghmc(
     trajectory = np.zeros((n_samples, init_position.shape[0]))
     trajectory[0] = np.array(state.position)
 
-    key = jax.random.PRNGKey(seed)
+    key = jax.random.PRNGKey(
+        seed
+    )  # ES: step key should be split here, also use new key api: jax.random.key()
 
     for i in range(1, n_samples):
         key, subkey = jax.random.split(key)
