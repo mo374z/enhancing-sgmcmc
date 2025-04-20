@@ -66,7 +66,7 @@ def gmm_logprob_data(position, samples, reg=1.0):
     return jax.nn.logsumexp(kernel_values) - jnp.log(len(samples))
 
 
-# QUESTION: can i estimate the gradients this way?
+# QUESTION: can i estimate the gradients this way? ES: looks good to me
 def gmm_grad_estimator(position, samples):
     """Gradient estimator using data samples (batch size agnostic)."""
     logprob = gmm_logprob_data(position, samples)
@@ -195,7 +195,7 @@ def plot_gmm_sampling(
                 point = jnp.array([X[i, j], Y[i, j]])
                 Z[i, j] = np.exp(gaussian_mixture_logprob(point, means, covs, weights))
 
-        # QUESTION: shouldnt we plot the logprob since this is what we are optimizing?
+        # QUESTION: shouldnt we plot the logprob since this is what we are optimizing? ES: does it deviate a lot from the DGP? Would be good to visualize at least to check the discrepancy.
         ax_main.contour(X, Y, Z, levels=15, cmap="coolwarm_r", alpha=0.5)
 
     # Plot Gaussian component means if requested
