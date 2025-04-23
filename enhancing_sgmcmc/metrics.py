@@ -9,6 +9,9 @@ from enhancing_sgmcmc.utils import gaussian_mixture_logprob
 
 # QUESTION: are those valid metrics and is their implementation valid (bot only approximating)
 # Especially for the wasserstein there are more accurate implementations, but they are much slower.
+# ES: I think we can have a better wassertsein distance approximation based on the fact,
+# that we know one of the two dirstributions (mixture of Gaussians?) Maybe sinkhorn algorithm (check what scipy stats is doing)
+# would not call it KLD approx, just use likelihood (under true) but the method is good!
 
 
 def wasserstein_distance_approximation(samples: jnp.ndarray, true_samples: jnp.ndarray) -> float:
@@ -21,7 +24,7 @@ def wasserstein_distance_approximation(samples: jnp.ndarray, true_samples: jnp.n
     dim = samples_np.shape[1]
 
     distances = []
-    for d in range(dim):
+    for d in range(dim):  # ES: would lend itself for vmap!
         dist = wasserstein_distance(samples_np[:, d], true_samples_np[:, d])
         distances.append(dist)
 
