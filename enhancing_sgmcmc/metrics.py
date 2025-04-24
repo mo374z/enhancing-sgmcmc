@@ -2,47 +2,36 @@ from typing import List, Optional
 
 import jax
 import jax.numpy as jnp
-import numpy as np
-from scipy.stats import wasserstein_distance
+import ot
 
 from enhancing_sgmcmc.utils import gaussian_mixture_logprob
 
-# QUESTION: are those valid metrics and is their implementation valid (bot only approximating)
-# Especially for the wasserstein there are more accurate implementations, but they are much slower.
-# ES: I think we can have a better wassertsein distance approximation based on the fact,
-# that we know one of the two dirstributions (mixture of Gaussians?) Maybe sinkhorn algorithm (check what scipy stats is doing)
-# would not call it KLD approx, just use likelihood (under true) but the method is good!
-
 
 def wasserstein_distance_approximation(samples: jnp.ndarray, true_samples: jnp.ndarray) -> float:
-    """
-    Approximate Wasserstein distance by computing 1D distances along each dimension and averaging.
-    """
-    samples_np = np.array(samples)
-    true_samples_np = np.array(true_samples)
+    """Efficient Wasserstein distance approximation using Sinkhorn algorithm."""
+    samples = jnp.array(samples)
 
-    dim = samples_np.shape[1]
+    n_samples = samples.shape[0]
+    n_true_samples = true_samples.shape[0]
 
-    distances = []
-    for d in range(dim):  # ES: would lend itself for vmap!
-        dist = wasserstein_distance(samples_np[:, d], true_samples_np[:, d])
-        distances.append(dist)
+    a = jnp.ones((n_samples,)) / n_samples
+    b = jnp.ones((n_true_samples,)) / n_true_samples
 
-    return np.mean(distances)
+    M = ot.dist(samples, true_samples)
+    reg = 0.01  # Regularization parameter for Sinkhorn distance (smaller values yield more accurate results)
+
+    return ot.sinkhorn2(a, b, M, reg)
 
 
-def kl_divergence_approximation(
+def negative_log_likelihood(
     samples: jnp.ndarray,
     means: jnp.ndarray,
     covs: jnp.ndarray,
     weights: jnp.ndarray,
 ) -> float:
     """
-    Compute the KL divergence between the sampler output and the true distribution.
-
-    Note: This computes the negative log-likelihood of samples under the true distribution,
-    which is related to but not exactly the KL divergence. The true KL divergence would require
-    knowing the density of the empirical distribution, which is not available.
+    Compute the negative log-likelihood of samples under the true Gaussian mixture distribution.
+    Higher values indicate worse fit between the empirical sample distribution and the true distribution.
     """
 
     def log_prob_for_sample(sample):
@@ -58,7 +47,7 @@ def compute_metrics(
     means: Optional[jnp.ndarray] = None,
     covs: Optional[jnp.ndarray] = None,
     weights: Optional[jnp.ndarray] = None,
-    metrics: List[str] = ["wasserstein", "kldivergence"],
+    metrics: List[str] = ["wasserstein", "nll"],
     verbosity: int = 0,
 ) -> dict:
     """
@@ -72,12 +61,12 @@ def compute_metrics(
         if verbosity > 1:
             print(f"Wasserstein distance: {w_dist}")
 
-    if "kldivergence" in metrics:
-        kl_div = kl_divergence_approximation(samples, means=means, covs=covs, weights=weights)
+    if "nll" in metrics:
+        kl_div = negative_log_likelihood(samples, means=means, covs=covs, weights=weights)
         if verbosity > 1:
             print(f"KL-Divergence: {kl_div}")
 
     return {
         "wasserstein": float(w_dist) if "wasserstein" in metrics else None,
-        "kldivergence": float(kl_div) if "kldivergence" in metrics else None,
+        "nll": float(kl_div) if "nll" in metrics else None,
     }

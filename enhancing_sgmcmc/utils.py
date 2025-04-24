@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Tuple
+from typing import Callable, Literal, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -66,11 +66,19 @@ def gmm_logprob_data(position, samples, reg=1.0):
     return jax.nn.logsumexp(kernel_values) - jnp.log(len(samples))
 
 
-# QUESTION: can i estimate the gradients this way? ES: looks good to me
 def gmm_grad_estimator(position, samples):
     """Gradient estimator using data samples (batch size agnostic)."""
     logprob = gmm_logprob_data(position, samples)
     return logprob, jax.grad(gmm_logprob_data)(position, samples)
+
+
+@jax.jit
+def compute_fisher_diagonal(position, data):
+    """Compute diagonal Fisher Information Matrix approximation with JIT."""
+    batch_grad_fn = jax.vmap(lambda sample: jax.grad(gmm_logprob_data)(position, sample[None, :]))
+    all_grads = batch_grad_fn(data)
+    fisher_diagonal = jnp.mean(all_grads**2, axis=0)
+    return 1 / jnp.sqrt(fisher_diagonal + 1e-8)
 
 
 def generate_minibatch(key, minibatch_size, all_samples):
@@ -79,7 +87,6 @@ def generate_minibatch(key, minibatch_size, all_samples):
     return all_samples[indices]
 
 
-# QUESTION: just double checking here - is the usage of the sampler correct? ES: yes looks good, just improve key handling
 def run_sequential_sghmc(
     sampler,
     init_position,
@@ -98,23 +105,21 @@ def run_sequential_sghmc(
     trajectory = np.zeros((n_samples, init_position.shape[0]))
     trajectory[0] = np.array(state.position)
 
-    key = jax.random.PRNGKey(
-        seed
-    )  # ES: step key should be split here, also use new key api: jax.random.key()
+    key = jax.random.key(seed)
+    batch_key, step_key = jax.random.split(key)
+    step_keys = jax.random.split(step_key, num=n_samples - 1)
+    batch_keys = jax.random.split(batch_key, num=n_samples - 1)
 
     for i in range(1, n_samples):
-        key, subkey = jax.random.split(key)
-
-        batch_key, step_key = jax.random.split(subkey)
         if batch_size < len(data):  # Minibatch
-            batch = generate_minibatch(batch_key, batch_size, data)
+            batch = generate_minibatch(batch_keys[i - 1], batch_size, data)
         else:  # Full batch
             batch = data
 
         # Run a single SGHMC step with this batch
         state = sampler.sample_step(
             state=state,
-            rng_key=step_key,
+            rng_key=step_keys[i - 1],
             minibatch=(batch, None),  # None for y as we're using unsupervised data
             step_size=step_size,
             mdecay=mdecay,
@@ -140,7 +145,7 @@ def plot_gmm_sampling(
     plot_last_n_samples: int = 0,
     padding: float = 0.5,
     show_samples: bool = True,
-    show_density: bool = True,
+    plot_density: Literal["log", "pdf", None] = "pdf",
     show_means: bool = False,
     xlim: Optional[Tuple[float, float]] = None,
     ylim: Optional[Tuple[float, float]] = None,
@@ -181,7 +186,7 @@ def plot_gmm_sampling(
 
     # Plot density contours if requested
     if (
-        show_density
+        plot_density is not None
         and means is not None
         and covs is not None
         and weights is not None
@@ -191,13 +196,16 @@ def plot_gmm_sampling(
         y = np.linspace(y_min, y_max, 100)
         X, Y = np.meshgrid(x, y)
         Z = np.zeros_like(X)
+        Z_log = np.zeros_like(X)
 
         for i in range(X.shape[0]):
             for j in range(X.shape[1]):
                 point = jnp.array([X[i, j], Y[i, j]])
                 Z[i, j] = np.exp(gaussian_mixture_logprob(point, means, covs, weights))
+                Z_log[i, j] = gaussian_mixture_logprob(point, means, covs, weights)
 
-        # QUESTION: shouldnt we plot the logprob since this is what we are optimizing? ES: does it deviate a lot from the DGP? Would be good to visualize at least to check the discrepancy.
+        if plot_density == "log":
+            Z = Z_log
         ax_main.contour(X, Y, Z, levels=15, cmap="coolwarm_r", alpha=0.5)
 
     # Plot Gaussian component means if requested

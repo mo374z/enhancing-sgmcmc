@@ -1,4 +1,3 @@
-# QUESTION: Do you think the hyperparameters are reasonably chosen especially for SGHMC? # ES: Same comment as in mixture.gaussian.yaml
 experiment_name: unimodal_gaussian
 seed: 567
 verbosity: 1

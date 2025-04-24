@@ -4,6 +4,7 @@ from datetime import datetime
 from itertools import product
 from pathlib import Path
 
+# import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +13,7 @@ import yaml
 from enhancing_sgmcmc.metrics import compute_metrics
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
 from enhancing_sgmcmc.utils import (
+    compute_fisher_diagonal,
     gaussian_mixture_logprob,
     generate_gmm_data,
     gmm_grad_estimator,
@@ -20,18 +22,16 @@ from enhancing_sgmcmc.utils import (
 )
 
 
-# QUESTION: Can is the fisher approximation valid this way? - ES: it is obviously quite an approximation.
-# ES: We only work with diagonal covariance matrices, so thats an obvious approximation. But to get the actual diagonal
-# empirical fisher information matrix, we would need to accumulate the squared gradients over the entire dataset.
-# practically, this is obviously not an option but we might want to consider it in these toy examples.
 def process_init_m(value, init_position, data):
     """Process the init_m value from the config file."""
     if value == "identity":
         return jnp.array([1.0, 1.0])
     elif value == "fisher":
-        # diagonal approximation of the FIM using the squared gradients
-        appr_, grad = gmm_grad_estimator(init_position, data)
-        return 1 / jnp.sqrt(grad**2)
+        # high-level, fast approximation
+        # appr_, grad = gmm_grad_estimator(init_position, data)
+        # return 1 / jnp.sqrt(grad**2)
+
+        return compute_fisher_diagonal(init_position, data)
     else:
         return jnp.array(value)
 
@@ -114,6 +114,8 @@ def run_experiments(config_path):
         processed_init_m = []
         for im in init_m_values:
             processed_init_m.append(process_init_m(im, init_position, samples))
+
+        print(processed_init_m)
 
         # Create parameter grid for this data configuration
         param_grid = list(

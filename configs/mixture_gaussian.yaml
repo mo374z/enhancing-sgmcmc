@@ -1,5 +1,3 @@
-# QUESTION: Do you think the hyperparameters are reasonably chosen especially for SGHMC? # ES: regarding mixture params - depends on what you want to show
-# but does not look odd. for sghmc looks good, step size is highly task specific mdecay and mom-resamp good. n batches/ batch size has also an effect but seems reasonable here :)
 experiment_name: mixture_gaussian
 seed: 567
 verbosity: 1
