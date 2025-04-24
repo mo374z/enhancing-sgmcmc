@@ -47,7 +47,7 @@ def run_experiments(config_path):
         config = yaml.safe_load(f)
 
     experiment_name = config.get("experiment_name")
-    seed = config.get("seed")
+    seeds = config.get("seeds")
     verbosity = config.get("verbosity", 1)
 
     results_dir = Path(f"results/{experiment_name}")
@@ -61,8 +61,11 @@ def run_experiments(config_path):
 
     plot_config = config.get("plot")
     if plot_config is not None:
-        xlim = plot_config.get("xlim", None)
-        ylim = plot_config.get("ylim", None)
+        xlim = plot_config.get("xlim")
+        ylim = plot_config.get("ylim")
+    else:
+        xlim = None
+        ylim = None
 
     # Get hyperparameters for grid search
     step_size_values = config.get("step_size")
@@ -81,11 +84,12 @@ def run_experiments(config_path):
             all_means,
             all_covs,
             all_weights,
+            seeds,
         )
     )
 
     # Outer loop over data configurations
-    for data_idx, (means, covs, weights) in enumerate(data_grid):
+    for data_idx, (means, covs, weights, seed) in enumerate(data_grid):
         means = jnp.array(means)
         covs = jnp.array(covs)
         weights = jnp.array(weights)
@@ -93,11 +97,11 @@ def run_experiments(config_path):
         if verbosity > 0:
             print("=" * 10 + f" DATA CONFIG ({data_idx + 1}/{len(data_grid)}) " + "=" * 10)
         if verbosity > 1:
-            print(f" Means: {means}\n Covs:\n {covs}\n Weights: {weights}")
+            print(f" Means: {means}\n Covs:\n {covs}\n Weights: {weights},\n Seed: {seed}")
 
         # Generate data for this configuration
         samples = generate_gmm_data(
-            seed=seed + data_idx,  # Vary seed slightly for each data config
+            seed=seed,
             means=means,
             covs=covs,
             weights=weights,
@@ -156,13 +160,13 @@ def run_experiments(config_path):
                 mdecay=mdecay,
                 num_integration_steps=1,
                 mresampling=mresampling,
-                seed=seed + data_idx + i,  # Ensure unique seeds
+                seed=seed,
             )
             end_time = datetime.now()
 
             # create a reproducible id for the dataset
             dataset_str = "".join(
-                [str(m) + str(c) + str(w) for m, c, w in zip(means, covs, weights)]
+                [str(m) + str(c) + str(w) + str(seed) for m, c, w in zip(means, covs, weights)]
             )
             dataset_id = hashlib.md5(dataset_str.encode()).hexdigest()[:6]
 
@@ -186,8 +190,8 @@ def run_experiments(config_path):
                 gaussian_mixture_logprob=gaussian_mixture_logprob,
                 title="SGHMC Sampling",
                 burnin=burnin,
-                xlim=xlim,
-                ylim=ylim,
+                xlim=None if xlim is None else xlim,
+                ylim=None if ylim is None else ylim,
                 figsize=(10, 5),
             )
 
@@ -211,7 +215,9 @@ def run_experiments(config_path):
 
             # Save experiment metadata
             metadata = {
+                "experiment_name": experiment_name,
                 "experiment_id": exp_id,
+                "seed": seed,
                 "data_config_id": data_idx,
                 "parameters": {
                     "init_m": init_m.tolist(),
@@ -226,7 +232,7 @@ def run_experiments(config_path):
                     "means": [m.tolist() for m in means],
                     "covs": [cov.tolist() for cov in covs],
                     "weights": weights.tolist(),
-                    "n_samples": n_samples,
+                    "num_samples": n_samples,
                 },
                 "results": {
                     "trajectory_path": str(trajectory_path),
