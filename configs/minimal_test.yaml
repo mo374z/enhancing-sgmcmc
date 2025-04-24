@@ -1,6 +1,6 @@
 experiment_name: minimal example
 seed: 567
-verbosity: 2
+verbosity: 1
 plot:
   xlim: [-3, 5]
   ylim: [-1, 7]
@@ -21,6 +21,7 @@ burnin:
 n_batches:
   - 5
 step_size:
+  - 0.1
   - 0.05
 init_m:
   - fisher

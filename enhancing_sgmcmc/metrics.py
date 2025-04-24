@@ -53,20 +53,13 @@ def compute_metrics(
     """
     Compute multiple metrics between sampler output and true distribution.
     """
-    if verbosity > 0:
-        print("Computing metrics...")
-
     if "wasserstein" in metrics:
         w_dist = wasserstein_distance_approximation(samples, true_samples)
-        if verbosity > 1:
-            print(f"Wasserstein distance: {w_dist}")
 
     if "nll" in metrics:
-        kl_div = negative_log_likelihood(samples, means=means, covs=covs, weights=weights)
-        if verbosity > 1:
-            print(f"KL-Divergence: {kl_div}")
+        nll = negative_log_likelihood(samples, means=means, covs=covs, weights=weights)
 
     return {
         "wasserstein": float(w_dist) if "wasserstein" in metrics else None,
-        "nll": float(kl_div) if "nll" in metrics else None,
+        "nll": float(nll) if "nll" in metrics else None,
     }

@@ -90,8 +90,10 @@ def run_experiments(config_path):
         covs = jnp.array(covs)
         weights = jnp.array(weights)
 
+        if verbosity > 0:
+            print("=" * 10 + f" DATA CONFIG ({data_idx + 1}/{len(data_grid)}) " + "=" * 10)
         if verbosity > 1:
-            print(f"Generating data with means: {means}, covs: {covs}, weights: {weights}")
+            print(f" Means: {means}\n Covs:\n {covs}\n Weights: {weights}")
 
         # Generate data for this configuration
         samples = generate_gmm_data(
@@ -103,9 +105,7 @@ def run_experiments(config_path):
         )
 
         # Print analytical FIM for this data configuration
-        if verbosity > 0:
-            print(f"Data configuration {data_idx + 1}/{len(data_grid)}:")
-        if verbosity > 1:
+        if verbosity > 2:
             print("Analytical FIM:")
             for cov in covs:
                 print(jnp.linalg.inv(cov))
@@ -114,8 +114,6 @@ def run_experiments(config_path):
         processed_init_m = []
         for im in init_m_values:
             processed_init_m.append(process_init_m(im, init_position, samples))
-
-        print(processed_init_m)
 
         # Create parameter grid for this data configuration
         param_grid = list(
@@ -130,10 +128,6 @@ def run_experiments(config_path):
             )
         )
 
-        if verbosity > 1:
-            print(f"Parameter grid for data config {data_idx + 1}:")
-            print(param_grid)
-
         # Run experiments for each parameter combination
         for i, (
             init_m,
@@ -145,11 +139,9 @@ def run_experiments(config_path):
             mresampling,
         ) in enumerate(param_grid):
             if verbosity > 0:
-                print(
-                    f"Running experiment {i + 1}/{len(param_grid)} for data config {data_idx + 1}"
-                )
+                print("=" * 10 + f" EXPERIMENT  ({i + 1}/{len(param_grid)}) " + "=" * 10)
             if verbosity > 1:
-                print(f"init_m: {init_m} \n step_size: {step_size} \n mdecay: {mdecay}")
+                print(f" init_m: {init_m} \n step_size: {step_size} \n mdecay: {mdecay}")
 
             # Run SGHMC
             start_time = datetime.now()
@@ -216,8 +208,6 @@ def run_experiments(config_path):
                 weights=weights,
                 verbosity=verbosity,
             )
-            if verbosity > 0:
-                print(("Successfully computed metrics"))
 
             # Save experiment metadata
             metadata = {
@@ -257,10 +247,13 @@ def run_experiments(config_path):
             with open(metadata_path, "w") as f:
                 yaml.dump(metadata, f)
 
+            if verbosity > 1:
+                print("Metrics:")
+                for key, value in metrics.items():
+                    print(f" {key}: {value}")
             if verbosity > 0:
-                print(f"Completed experiment {i + 1} in {end_time - start_time} seconds")
-                print(f"Results saved to {exp_dir}")
-                print("-" * 50)
+                print(f"Experiment took {end_time - start_time} seconds")
+                print(f"Files saved to {exp_dir}")
 
 
 def main():
