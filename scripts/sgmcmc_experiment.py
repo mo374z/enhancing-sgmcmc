@@ -84,12 +84,11 @@ def run_experiments(config_path):
             all_means,
             all_covs,
             all_weights,
-            seeds,
         )
     )
 
     # Outer loop over data configurations
-    for data_idx, (means, covs, weights, seed) in enumerate(data_grid):
+    for data_idx, (means, covs, weights) in enumerate(data_grid):
         means = jnp.array(means)
         covs = jnp.array(covs)
         weights = jnp.array(weights)
@@ -97,169 +96,177 @@ def run_experiments(config_path):
         if verbosity > 0:
             print("=" * 10 + f" DATA CONFIG ({data_idx + 1}/{len(data_grid)}) " + "=" * 10)
         if verbosity > 1:
-            print(f" Means: {means}\n Covs:\n {covs}\n Weights: {weights},\n Seed: {seed}")
+            print(f" Means: {means}\n Covs:\n {covs}\n Weights: {weights}")
 
-        # Generate data for this configuration
-        samples = generate_gmm_data(
-            seed=seed,
-            means=means,
-            covs=covs,
-            weights=weights,
-            n_samples=n_samples,
-        )
-
-        # Print analytical FIM for this data configuration
-        if verbosity > 2:
-            print("Analytical FIM:")
-            for cov in covs:
-                print(jnp.linalg.inv(cov))
-
-        # Process init_m values for this data configuration
-        processed_init_m = []
-        for im in init_m_values:
-            processed_init_m.append(process_init_m(im, init_position, samples))
-
-        # Create parameter grid for this data configuration
-        param_grid = list(
-            product(
-                processed_init_m,
-                step_size_values,
-                mdecay_values,
-                burnin_values,
-                mcmc_samples_values,
-                n_batches_values,
-                mresampling_values,
-            )
-        )
-
-        # Run experiments for each parameter combination
-        for i, (
-            init_m,
-            step_size,
-            mdecay,
-            burnin,
-            mcmc_samples,
-            n_batches,
-            mresampling,
-        ) in enumerate(param_grid):
+        for i, seed in enumerate(seeds):
             if verbosity > 0:
-                print("=" * 10 + f" EXPERIMENT  ({i + 1}/{len(param_grid)}) " + "=" * 10)
-            if verbosity > 1:
-                print(f" init_m: {init_m} \n step_size: {step_size} \n mdecay: {mdecay}")
+                print("=" * 10 + f" SEED ({i}/{len(seeds)}) " + "=" * 17)
 
-            # Run SGHMC
-            start_time = datetime.now()
-            trajectory = run_sequential_sghmc(
-                sampler=sampler,
-                data=samples,
-                init_position=init_position,
-                init_m=init_m,
-                batch_size=len(samples) // n_batches,
-                n_samples=mcmc_samples,  # Use mcmc_samples not n_samples here
-                step_size=step_size,
-                mdecay=mdecay,
-                num_integration_steps=1,
-                mresampling=mresampling,
+            # Generate data for this configuration
+            samples = generate_gmm_data(
                 seed=seed,
-            )
-            end_time = datetime.now()
-
-            # create a reproducible id for the dataset
-            dataset_str = "".join(
-                [str(m) + str(c) + str(w) + str(seed) for m, c, w in zip(means, covs, weights)]
-            )
-            dataset_id = hashlib.md5(dataset_str.encode()).hexdigest()[:6]
-
-            # Create experiment ID from current timestamp
-            exp_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-            exp_dir = results_dir / f"data_{dataset_id}/{exp_id}"
-            exp_dir.mkdir(parents=True, exist_ok=True)
-
-            # Save trajectory
-            trajectory_path = exp_dir / "trajectory.npy"
-            with open(trajectory_path, "wb") as f:
-                np.save(f, np.array(trajectory))
-
-            # Plot and save figure
-            fig, ax = plot_gmm_sampling(
-                trajectory=trajectory,
-                samples=samples,
                 means=means,
                 covs=covs,
                 weights=weights,
-                gaussian_mixture_logprob=gaussian_mixture_logprob,
-                title="SGHMC Sampling",
-                burnin=burnin,
-                xlim=None if xlim is None else xlim,
-                ylim=None if ylim is None else ylim,
-                figsize=(10, 5),
+                n_samples=n_samples,
             )
 
-            plot_path = exp_dir / "plot.png"
-            fig.suptitle(
-                f"Experiment Results\n(Step size: {step_size}, Momentum Decay: {mdecay}, Preconditioning: {init_m})",
+            # Print analytical FIM for this data configuration
+            if verbosity > 2:
+                print("Analytical FIM:")
+                for cov in covs:
+                    print(jnp.linalg.inv(cov))
+
+            # Process init_m values for this data configuration
+            processed_init_m = []
+            for im in init_m_values:
+                processed_init_m.append(process_init_m(im, init_position, samples))
+
+            # Create parameter grid for this data configuration
+            param_grid = list(
+                product(
+                    processed_init_m,
+                    step_size_values,
+                    mdecay_values,
+                    burnin_values,
+                    mcmc_samples_values,
+                    n_batches_values,
+                    mresampling_values,
+                )
             )
-            fig.savefig(plot_path, bbox_inches="tight")
-            plt.close(fig)
 
-            yaml.add_representer(jnp.ndarray, jax_array_representer)
+            # Run experiments for each parameter combination
+            for i, (
+                init_m,
+                step_size,
+                mdecay,
+                burnin,
+                mcmc_samples,
+                n_batches,
+                mresampling,
+            ) in enumerate(param_grid):
+                if verbosity > 0:
+                    print("=" * 10 + f" EXPERIMENT ({i + 1}/{len(param_grid)}) " + "=" * 11)
+                if verbosity > 1:
+                    print(f" init_m: {init_m} \n step_size: {step_size} \n mdecay: {mdecay}")
 
-            metrics = compute_metrics(
-                samples=trajectory[burnin:],
-                true_samples=samples,
-                means=means,
-                covs=covs,
-                weights=weights,
-                verbosity=verbosity,
-            )
+                # Run SGHMC
+                start_time = datetime.now()
+                trajectory = run_sequential_sghmc(
+                    sampler=sampler,
+                    data=samples,
+                    init_position=init_position,
+                    init_m=init_m,
+                    batch_size=len(samples) // n_batches,
+                    n_samples=mcmc_samples,  # Use mcmc_samples not n_samples here
+                    step_size=step_size,
+                    mdecay=mdecay,
+                    num_integration_steps=1,
+                    mresampling=mresampling,
+                    seed=seed,
+                )
+                end_time = datetime.now()
 
-            # Save experiment metadata
-            metadata = {
-                "experiment_name": experiment_name,
-                "experiment_id": exp_id,
-                "seed": seed,
-                "data_config_id": data_idx,
-                "parameters": {
-                    "init_m": init_m.tolist(),
-                    "step_size": step_size,
-                    "mdecay": mdecay,
-                    "burnin": burnin,
-                    "mcmc_samples": mcmc_samples,
-                    "n_batches": n_batches,
-                    "mresampling": mresampling,
-                },
-                "data": {
-                    "means": [m.tolist() for m in means],
-                    "covs": [cov.tolist() for cov in covs],
-                    "weights": weights.tolist(),
-                    "num_samples": n_samples,
-                },
-                "results": {
-                    "trajectory_path": str(trajectory_path),
-                    "plot_path": str(plot_path),
-                    "runtime_seconds": (end_time - start_time).total_seconds(),
-                    "metrics": metrics,
-                },
-            }
+                # create a reproducible id for the dataset
+                dataset_str = "".join(
+                    [str(m) + str(c) + str(w) for m, c, w in zip(means, covs, weights)]
+                )
+                dataset_id = hashlib.md5(dataset_str.encode()).hexdigest()[:6]
 
-            def represent_list_compactly(dumper, data):
-                if all(isinstance(item, list) for item in data):
-                    return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
-                return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=False)
+                # Create experiment ID from current timestamp
+                exp_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                exp_dir = results_dir / f"data_{dataset_id}/{seed}/{exp_id}"
+                exp_dir.mkdir(parents=True, exist_ok=True)
 
-            yaml.add_representer(list, represent_list_compactly)
+                # Save trajectory
+                trajectory_path = exp_dir / "trajectory.npy"
+                with open(trajectory_path, "wb") as f:
+                    np.save(f, np.array(trajectory))
 
-            metadata_path = exp_dir / "metadata.yaml"
-            with open(metadata_path, "w") as f:
-                yaml.dump(metadata, f)
+                # Plot and save figure
+                fig, ax = plot_gmm_sampling(
+                    trajectory=trajectory,
+                    samples=samples,
+                    means=means,
+                    covs=covs,
+                    weights=weights,
+                    gaussian_mixture_logprob=gaussian_mixture_logprob,
+                    title="SGHMC Sampling",
+                    burnin=burnin,
+                    xlim=None if xlim is None else xlim,
+                    ylim=None if ylim is None else ylim,
+                    figsize=(10, 5),
+                )
 
-            if verbosity > 1:
-                print("Metrics:")
-                for key, value in metrics.items():
-                    print(f" {key}: {value}")
-            if verbosity > 0:
-                print(f"Experiment took {end_time - start_time} seconds")
-                print(f"Files saved to {exp_dir}")
+                plot_path = exp_dir / "plot.png"
+                fig.suptitle(
+                    f"Experiment Results\n(Step size: {step_size}, Momentum Decay: {mdecay}, Preconditioning: {init_m})",
+                )
+                fig.savefig(plot_path, bbox_inches="tight")
+                plt.close(fig)
+
+                yaml.add_representer(jnp.ndarray, jax_array_representer)
+
+                metrics = compute_metrics(
+                    samples=trajectory[burnin:],
+                    true_samples=samples,
+                    means=means,
+                    covs=covs,
+                    weights=weights,
+                    verbosity=verbosity,
+                )
+
+                # Save experiment metadata
+                metadata = {
+                    "experiment_name": experiment_name,
+                    "experiment_id": exp_id,
+                    "seed": seed,
+                    "data_config_id": data_idx,
+                    "parameters": {
+                        "init_m": init_m.tolist(),
+                        "step_size": step_size,
+                        "mdecay": mdecay,
+                        "burnin": burnin,
+                        "mcmc_samples": mcmc_samples,
+                        "n_batches": n_batches,
+                        "mresampling": mresampling,
+                    },
+                    "data": {
+                        "means": [m.tolist() for m in means],
+                        "covs": [cov.tolist() for cov in covs],
+                        "weights": weights.tolist(),
+                        "num_samples": n_samples,
+                    },
+                    "results": {
+                        "trajectory_path": str(trajectory_path),
+                        "plot_path": str(plot_path),
+                        "runtime_seconds": (end_time - start_time).total_seconds(),
+                        "metrics": metrics,
+                    },
+                }
+
+                def represent_list_compactly(dumper, data):
+                    if all(isinstance(item, list) for item in data):
+                        return dumper.represent_sequence(
+                            "tag:yaml.org,2002:seq", data, flow_style=True
+                        )
+                    return dumper.represent_sequence(
+                        "tag:yaml.org,2002:seq", data, flow_style=False
+                    )
+
+                yaml.add_representer(list, represent_list_compactly)
+
+                metadata_path = exp_dir / "metadata.yaml"
+                with open(metadata_path, "w") as f:
+                    yaml.dump(metadata, f)
+
+                if verbosity > 1:
+                    print("Metrics:")
+                    for key, value in metrics.items():
+                        print(f" {key}: {value}")
+                if verbosity > 0:
+                    print(f"Experiment took {end_time - start_time} seconds")
+                    print(f"Files saved to {exp_dir}")
 
 
 def main():
