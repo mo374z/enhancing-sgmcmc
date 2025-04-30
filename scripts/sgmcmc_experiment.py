@@ -13,27 +13,13 @@ import yaml
 from enhancing_sgmcmc.metrics import compute_metrics
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
 from enhancing_sgmcmc.utils import (
-    compute_fisher_diagonal,
     gaussian_mixture_logprob,
     generate_gmm_data,
     gmm_grad_estimator,
     plot_gmm_sampling,
+    process_init_m,
     run_sequential_sghmc,
 )
-
-
-def process_init_m(value, init_position, data):
-    """Process the init_m value from the config file."""
-    if value == "identity":
-        return jnp.array([1.0, 1.0])
-    elif value == "fisher":
-        # high-level, fast approximation
-        # appr_, grad = gmm_grad_estimator(init_position, data)
-        # return 1 / jnp.sqrt(grad**2)
-
-        return compute_fisher_diagonal(init_position, data)
-    else:
-        return jnp.array(value)
 
 
 def jax_array_representer(dumper, data):

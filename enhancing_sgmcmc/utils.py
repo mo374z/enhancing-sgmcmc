@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 
+from enhancing_sgmcmc.samplers.sghmc import SGHMC
+
 
 def generate_gaussian_noise(rng_key, param_tree):
     """Generate Gaussian noise with the same shape as param_tree."""
@@ -72,6 +74,19 @@ def gmm_grad_estimator(position, samples):
     return logprob, jax.grad(gmm_logprob_data)(position, samples)
 
 
+def process_init_m(value, init_position, data):
+    """Process the init_m value from the config file."""
+    if value == "identity":
+        return jnp.array([1.0, 1.0])
+    elif value == "fisher":
+        # high-level, fast approximation
+        # appr_, grad = gmm_grad_estimator(init_position, data)
+        # return 1 / jnp.sqrt(grad**2)
+        return compute_fisher_diagonal(init_position, data)
+    else:
+        return jnp.array(value)
+
+
 @jax.jit
 def compute_fisher_diagonal(position, data):
     """Compute diagonal Fisher Information Matrix approximation with JIT."""
@@ -91,7 +106,7 @@ def run_sequential_sghmc(
     sampler,
     init_position,
     data,
-    n_samples,
+    mcmc_samples,
     batch_size,
     init_m=None,
     step_size=0.05,
@@ -101,16 +116,17 @@ def run_sequential_sghmc(
     seed=0,
 ):
     """Run SGHMC with sequential control over batches."""
+    init_m = process_init_m(init_m, init_position, data)
     state = sampler.init_state(init_position, init_m)
-    trajectory = np.zeros((n_samples, init_position.shape[0]))
+    trajectory = np.zeros((mcmc_samples, init_position.shape[0]))
     trajectory[0] = np.array(state.position)
 
     key = jax.random.key(seed)
     batch_key, step_key = jax.random.split(key)
-    step_keys = jax.random.split(step_key, num=n_samples - 1)
-    batch_keys = jax.random.split(batch_key, num=n_samples - 1)
+    step_keys = jax.random.split(step_key, num=mcmc_samples - 1)
+    batch_keys = jax.random.split(batch_key, num=mcmc_samples - 1)
 
-    for i in range(1, n_samples):
+    for i in range(1, mcmc_samples):
         if batch_size < len(data):  # Minibatch
             batch = generate_minibatch(batch_keys[i - 1], batch_size, data)
         else:  # Full batch
@@ -132,6 +148,42 @@ def run_sequential_sghmc(
     return trajectory
 
 
+def run_experiment(
+    means: jnp.ndarray,
+    covs: jnp.ndarray,
+    weights: jnp.ndarray,
+    data_samples: int,
+    mcmc_samples: int,
+    init_position: jnp.ndarray,
+    batch_size: int,
+    sampler: Literal["SGHMC"] = "SGHMC",
+    init_m=None,
+    step_size=0.05,
+    mdecay=0.05,
+    num_integration_steps=1,
+    mresampling=0.0,
+    seed=0,
+):
+    """ "Run a full experiment with SGHMC."""
+    sampler = SGHMC(grad_estimator=gmm_grad_estimator)
+    data = generate_gmm_data(seed, means, covs, weights, n_samples=data_samples)
+    trajectory = run_sequential_sghmc(
+        sampler=sampler,
+        init_position=init_position,
+        data=data,
+        n_samples=mcmc_samples,
+        batch_size=batch_size,
+        init_m=init_m,
+        step_size=step_size,
+        mdecay=mdecay,
+        num_integration_steps=num_integration_steps,
+        mresampling=mresampling,
+        seed=seed,
+    )
+    return trajectory
+
+
+# TODO: allow to plot only one of both subplots
 def plot_gmm_sampling(
     trajectory: Optional[NDArray] = None,
     samples: Optional[NDArray] = None,
