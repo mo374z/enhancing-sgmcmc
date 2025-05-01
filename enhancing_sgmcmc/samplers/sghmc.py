@@ -4,11 +4,19 @@ from typing import Any, Callable, Tuple
 import jax
 import jax.numpy as jnp
 
-from enhancing_sgmcmc.utils import generate_gaussian_noise
-
 PRNGKey = jnp.ndarray
 ParamTree = Any
 DataSet = Tuple[jnp.ndarray, jnp.ndarray]
+
+
+def generate_gaussian_noise(rng_key, param_tree):
+    """Generate Gaussian noise with the same shape as param_tree."""
+    treedef = jax.tree.structure(param_tree)
+    keys = jax.random.split(rng_key, len(jax.tree.leaves(param_tree)))
+    noise_leaves = [
+        jax.random.normal(k, shape=leaf.shape) for k, leaf in zip(keys, jax.tree.leaves(param_tree))
+    ]
+    return jax.tree.unflatten(treedef, noise_leaves)
 
 
 class SGHMC:

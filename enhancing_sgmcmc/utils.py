@@ -1,4 +1,4 @@
-from typing import Callable, Literal, Optional, Tuple
+from typing import Callable, List, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -7,16 +7,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
-
-
-def generate_gaussian_noise(rng_key, param_tree):
-    """Generate Gaussian noise with the same shape as param_tree."""
-    treedef = jax.tree.structure(param_tree)
-    keys = jax.random.split(rng_key, len(jax.tree.leaves(param_tree)))
-    noise_leaves = [
-        jax.random.normal(k, shape=leaf.shape) for k, leaf in zip(keys, jax.tree.leaves(param_tree))
-    ]
-    return jax.tree.unflatten(treedef, noise_leaves)
 
 
 def gaussian_mixture_logprob(x, means, covs, weights):
@@ -155,7 +145,7 @@ def run_experiment(
     data_samples: int,
     mcmc_samples: int,
     init_position: jnp.ndarray,
-    batch_size: int,
+    n_batches: int,
     sampler: Literal["SGHMC"] = "SGHMC",
     init_m=None,
     step_size=0.05,
@@ -171,8 +161,8 @@ def run_experiment(
         sampler=sampler,
         init_position=init_position,
         data=data,
-        n_samples=mcmc_samples,
-        batch_size=batch_size,
+        mcmc_samples=mcmc_samples,
+        batch_size=len(data) // n_batches,
         init_m=init_m,
         step_size=step_size,
         mdecay=mdecay,
@@ -180,11 +170,11 @@ def run_experiment(
         mresampling=mresampling,
         seed=seed,
     )
-    return trajectory
+    return data, trajectory
 
 
-# TODO: allow to plot only one of both subplots
-def plot_gmm_sampling(
+def plot_mcmc_sampling(
+    ax: plt.Axes,
     trajectory: Optional[NDArray] = None,
     samples: Optional[NDArray] = None,
     means: Optional[NDArray] = None,
@@ -192,7 +182,6 @@ def plot_gmm_sampling(
     weights: Optional[NDArray] = None,
     gaussian_mixture_logprob: Optional[Callable] = None,
     title: str = "MCMC Sampling",
-    figsize: Tuple[int, int] = (14, 6),
     burnin: int = 0,
     plot_last_n_samples: int = 0,
     padding: float = 0.5,
@@ -201,11 +190,8 @@ def plot_gmm_sampling(
     show_means: bool = False,
     xlim: Optional[Tuple[float, float]] = None,
     ylim: Optional[Tuple[float, float]] = None,
-) -> Tuple[plt.Figure, plt.Axes]:
-    """Enhanced visualization function for MCMC sampling from Gaussian mixture models."""
-    fig, axes = plt.subplots(1, 2, figsize=figsize, constrained_layout=True)
-    ax_main = axes[0]
-
+) -> None:
+    """Plot MCM sampling trajectory and optionally GMM density."""
     cmap = plt.get_cmap("Dark2")
 
     # Compute plot ranges automatically if not provided
@@ -258,22 +244,22 @@ def plot_gmm_sampling(
 
         if plot_density == "log":
             Z = Z_log
-        ax_main.contour(X, Y, Z, levels=15, cmap="coolwarm_r", alpha=0.5)
+        ax.contour(X, Y, Z, levels=15, cmap="coolwarm_r", alpha=0.5)
 
     # Plot Gaussian component means if requested
     if show_means and means is not None:
         for mean in means:
-            ax_main.scatter(mean[0], mean[1], c="red", s=50, marker="*")
-        ax_main.scatter([], [], c="red", s=50, marker="*", label="Gaussian means")
+            ax.scatter(mean[0], mean[1], c="red", s=50, marker="*")
+        ax.scatter([], [], c="red", s=50, marker="*", label="Gaussian means")
 
     # Plot data samples if requested
     if show_samples and samples is not None:
-        ax_main.scatter(samples[:, 0], samples[:, 1], c="gray", s=10, alpha=1, label="Data samples")
+        ax.scatter(samples[:, 0], samples[:, 1], c="gray", s=10, alpha=1, label="Data samples")
 
     # Plot MCMC trajectory if available
     if trajectory is not None:
         if burnin > 0:
-            ax_main.plot(
+            ax.plot(
                 trajectory[:burnin, 0],
                 trajectory[:burnin, 1],
                 color=cmap(4),
@@ -281,7 +267,7 @@ def plot_gmm_sampling(
                 label=f"Burn-in ({burnin} samples)",
             )
 
-        ax_main.plot(
+        ax.plot(
             trajectory[burnin:, 0],
             trajectory[burnin:, 1],
             color=cmap(0),
@@ -289,16 +275,16 @@ def plot_gmm_sampling(
             label="Sampling trajectory",
         )
 
-        ax_main.scatter(
+        ax.scatter(
             trajectory[0, 0], trajectory[0, 1], color=cmap(3), s=50, marker="o", label="Start"
         )
-        ax_main.scatter(
+        ax.scatter(
             trajectory[-1, 0], trajectory[-1, 1], color=cmap(2), s=50, marker="o", label="End"
         )
 
         if plot_last_n_samples > 0:
             last_n = min(plot_last_n_samples, len(trajectory) - burnin)
-            ax_main.scatter(
+            ax.scatter(
                 trajectory[-last_n:, 0],
                 trajectory[-last_n:, 1],
                 c="black",
@@ -307,53 +293,169 @@ def plot_gmm_sampling(
                 label=f"Last {last_n} samples",
             )
 
-        # Plot trajectory in time series on the second subplot
-        ax_ts = axes[1]
-        ax_ts.plot(
-            range(len(trajectory)), trajectory[:, 0], color=cmap(1), alpha=0.7, label="x coordinate"
+    ax.set_title(title)
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.grid(True, alpha=0.3)
+
+
+def plot_coordinates_over_time(
+    ax: plt.Axes,
+    trajectory: NDArray,
+    burnin: int = 0,
+    title: str = "Coordinates over time",
+) -> None:
+    """Plot the coordinates over time."""
+    cmap = plt.get_cmap("Dark2")
+
+    ax.plot(
+        range(len(trajectory)), trajectory[:, 0], color=cmap(1), alpha=0.7, label="x coordinate"
+    )
+    ax.plot(
+        range(len(trajectory)), trajectory[:, 1], color=cmap(5), alpha=0.7, label="y coordinate"
+    )
+
+    if burnin > 0:
+        ax.axvline(x=burnin, color="black", linestyle="--", alpha=0.7, label="Burn-in End")
+
+    ax.set_title(title)
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Coordinate value")
+    ax.grid(True, alpha=0.3)
+
+
+def plot_gmm_sampling(
+    fig: plt.Figure,
+    ax: Union[plt.Axes, List[plt.Axes]],
+    trajectory: Optional[NDArray] = None,
+    samples: Optional[NDArray] = None,
+    means: Optional[NDArray] = None,
+    covs: Optional[NDArray] = None,
+    weights: Optional[NDArray] = None,
+    gaussian_mixture_logprob: Optional[Callable] = None,
+    title: str = "MCMC Sampling",
+    burnin: int = 0,
+    plot_last_n_samples: int = 0,
+    padding: float = 0.5,
+    show_samples: bool = True,
+    plot_density: Literal["log", "pdf", None] = "pdf",
+    show_means: bool = False,
+    xlim: Optional[Tuple[float, float]] = None,
+    ylim: Optional[Tuple[float, float]] = None,
+    plot_type: Literal["sampling", "time_series", "both"] = "both",
+) -> None:
+    """Enhanced visualization function for MCMC sampling from Gaussian mixture models."""
+    if plot_type == "sampling":
+        plot_mcmc_sampling(
+            ax,
+            trajectory=trajectory,
+            samples=samples,
+            means=means,
+            covs=covs,
+            weights=weights,
+            gaussian_mixture_logprob=gaussian_mixture_logprob,
+            title=title,
+            burnin=burnin,
+            plot_last_n_samples=plot_last_n_samples,
+            padding=padding,
+            show_samples=show_samples,
+            plot_density=plot_density,
+            show_means=show_means,
+            xlim=xlim,
+            ylim=ylim,
         )
-        ax_ts.plot(
-            range(len(trajectory)), trajectory[:, 1], color=cmap(5), alpha=0.7, label="y coordinate"
+
+        handles, labels = ax.get_legend_handles_labels()
+        if handles:
+            fig.legend(
+                handles,
+                labels,
+                loc="lower center",
+                bbox_to_anchor=(0.5, -0.05),
+                ncol=3 if len(labels) > 4 else 2,
+                frameon=False,
+                fontsize=8,
+            )
+
+    elif plot_type == "time_series":
+        if trajectory is not None:
+            plot_coordinates_over_time(
+                ax,
+                trajectory=trajectory,
+                burnin=burnin,
+                title=title,
+            )
+
+            # Add legend
+            handles, labels = ax.get_legend_handles_labels()
+            fig.legend(
+                handles,
+                labels,
+                loc="lower center",
+                bbox_to_anchor=(0.5, -0.05),
+                ncol=len(labels),
+                frameon=False,
+                fontsize=8,
+            )
+        else:
+            ax.text(0.5, 0.5, "No trajectory data provided", ha="center", va="center")
+
+    elif plot_type == "both":
+        # For both plots, expect a list of axes
+        if not isinstance(ax, (list, np.ndarray)) or len(ax) < 2:
+            raise ValueError("For plot_type='both', ax must be a list or array of at least 2 axes")
+
+        # Plot sampling on the first subplot
+        plot_mcmc_sampling(
+            ax[0],
+            trajectory=trajectory,
+            samples=samples,
+            means=means,
+            covs=covs,
+            weights=weights,
+            gaussian_mixture_logprob=gaussian_mixture_logprob,
+            title=title,
+            burnin=burnin,
+            plot_last_n_samples=plot_last_n_samples,
+            padding=padding,
+            show_samples=show_samples,
+            plot_density=plot_density,
+            show_means=show_means,
+            xlim=xlim,
+            ylim=ylim,
         )
 
-        if burnin > 0:
-            ax_ts.axvline(x=burnin, color="black", linestyle="--", alpha=0.7, label="Burn-in End")
+        if trajectory is not None:
+            plot_coordinates_over_time(
+                ax[1],
+                trajectory=trajectory,
+                burnin=burnin,
+            )
 
-        ax_ts.set_title("Coordinates over time")
-        ax_ts.set_xlabel("Iteration")
-        ax_ts.set_ylabel("Coordinate value")
-        ax_ts.grid(True, alpha=0.3)
+            handles2, labels2 = ax[1].get_legend_handles_labels()
+            fig.legend(
+                handles2,
+                labels2,
+                loc="lower center",
+                bbox_to_anchor=(0.75, -0.05),
+                ncol=len(labels2),
+                frameon=False,
+                fontsize=8,
+            )
 
-        # Add legends
-        handles2, labels2 = ax_ts.get_legend_handles_labels()
-        fig.legend(
-            handles2,
-            labels2,
-            loc="lower center",
-            bbox_to_anchor=(0.75, -0.1),
-            ncol=len(labels2),
-            frameon=False,
-            fontsize=8,
-        )
+        handles1, labels1 = ax[0].get_legend_handles_labels()
+        if handles1:
+            fig.legend(
+                handles1,
+                labels1,
+                loc="lower center",
+                bbox_to_anchor=(0.25, -0.05),
+                ncol=3 if len(labels1) > 4 else 2,
+                frameon=False,
+                fontsize=8,
+            )
 
-    ax_main.set_title(title)
-    ax_main.set_xlabel("x")
-    ax_main.set_ylabel("y")
-    ax_main.set_xlim(x_min, x_max)
-    ax_main.set_ylim(y_min, y_max)
-    ax_main.grid(True, alpha=0.3)
-
-    # Add legend for main plot
-    handles1, labels1 = ax_main.get_legend_handles_labels()
-    if handles1:
-        fig.legend(
-            handles1,
-            labels1,
-            loc="lower center",
-            bbox_to_anchor=(0.25, -0.1),
-            ncol=3 if len(labels1) > 4 else 2,
-            frameon=False,
-            fontsize=8,
-        )
-
-    return fig, axes
+    else:
+        raise ValueError(f"Invalid plot_type: {plot_type}")
