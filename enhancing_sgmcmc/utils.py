@@ -1,9 +1,13 @@
-from typing import Callable, List, Literal, Optional, Tuple, Union
+from glob import glob
+from typing import List, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
+import yaml
 from numpy.typing import NDArray
 
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
@@ -180,7 +184,6 @@ def plot_mcmc_sampling(
     means: Optional[NDArray] = None,
     covs: Optional[NDArray] = None,
     weights: Optional[NDArray] = None,
-    gaussian_mixture_logprob: Optional[Callable] = None,
     title: str = "MCMC Sampling",
     burnin: int = 0,
     plot_last_n_samples: int = 0,
@@ -223,13 +226,7 @@ def plot_mcmc_sampling(
         y_min, y_max = ylim
 
     # Plot density contours if requested
-    if (
-        plot_density is not None
-        and means is not None
-        and covs is not None
-        and weights is not None
-        and gaussian_mixture_logprob is not None
-    ):
+    if plot_density is not None and means is not None and covs is not None and weights is not None:
         x = np.linspace(x_min, x_max, 100)
         y = np.linspace(y_min, y_max, 100)
         X, Y = np.meshgrid(x, y)
@@ -334,7 +331,6 @@ def plot_gmm_sampling(
     means: Optional[NDArray] = None,
     covs: Optional[NDArray] = None,
     weights: Optional[NDArray] = None,
-    gaussian_mixture_logprob: Optional[Callable] = None,
     title: str = "MCMC Sampling",
     burnin: int = 0,
     plot_last_n_samples: int = 0,
@@ -355,7 +351,6 @@ def plot_gmm_sampling(
             means=means,
             covs=covs,
             weights=weights,
-            gaussian_mixture_logprob=gaussian_mixture_logprob,
             title=title,
             burnin=burnin,
             plot_last_n_samples=plot_last_n_samples,
@@ -415,7 +410,6 @@ def plot_gmm_sampling(
             means=means,
             covs=covs,
             weights=weights,
-            gaussian_mixture_logprob=gaussian_mixture_logprob,
             title=title,
             burnin=burnin,
             plot_last_n_samples=plot_last_n_samples,
@@ -459,3 +453,85 @@ def plot_gmm_sampling(
 
     else:
         raise ValueError(f"Invalid plot_type: {plot_type}")
+
+
+def load_experiment_data(experiment_name: str) -> pd.DataFrame:
+    """
+    Load experiment data from YAML files.
+    """
+    path = f"results\\{experiment_name}\\**\\"
+    files = glob(path + "*.yaml", recursive=True)
+
+    df = pd.DataFrame()
+    for file in files:
+        df_temp = yaml.load(open(file), Loader=yaml.FullLoader)
+        df_temp = pd.json_normalize(df_temp, sep="_")
+        df_temp["file"] = file.split("/")[-1]
+        df = pd.concat([df, df_temp], ignore_index=True)
+
+    df["preconditioned"] = df["parameters_init_m"].apply(lambda x: not jnp.all(jnp.array(x) == 1.0))
+
+    return df.rename(columns=lambda x: x.replace("parameters_", "").replace("results_metrics_", ""))
+
+
+def plot_combined_metric_comparison(
+    df: pd.DataFrame,
+    metrics: list,
+    param: str,
+    data_configs: list = None,
+    filter_conditions: dict = None,
+    title: str = None,
+    figsize: tuple = (12, 10),
+    save_path: str = None,
+    plot_type: str = "boxplot",
+):
+    """Plot comparison of multiple metrics across different experiment configurations in a single figure."""
+    if data_configs is None:
+        data_configs = sorted(df["data_config_id"].unique())
+
+    n_rows = len(data_configs)
+    n_cols = len(metrics)
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=figsize, sharex="col")
+
+    if title:
+        fig.suptitle(title)
+
+    if n_rows == 1 and n_cols == 1:
+        axs = [[axs]]
+    elif n_rows == 1:
+        axs = [axs]
+    elif n_cols == 1:
+        axs = [[ax] for ax in axs]
+
+    for i, data_idx in enumerate(data_configs):
+        df_temp = df[df["data_config_id"] == data_idx]
+
+        if filter_conditions:
+            for key, value in filter_conditions.items():
+                if key == "init_m":
+                    if value == "identity":
+                        df_temp = df_temp[df_temp["init_m"].apply(lambda x: x == [1.0, 1.0])]
+                    elif value == "fisher":
+                        df_temp = df_temp[df_temp["init_m"].apply(lambda x: x != [1.0, 1.0])]
+                elif key == "preconditioned":
+                    df_temp = df_temp[df_temp["preconditioned"] == value]
+                else:
+                    df_temp = df_temp[df_temp[key] == value]
+
+        for j, metric in enumerate(metrics):
+            if plot_type == "boxplot":
+                sns.boxplot(data=df_temp, x=param, y=metric, ax=axs[i][j])
+            elif plot_type == "lineplot":
+                sns.lineplot(data=df_temp, x=param, y=metric, ax=axs[i][j], marker="o")
+
+            axs[i][j].set_title(f"Dataset {data_idx}")
+            axs[i][j].set_xlabel(param)
+            axs[i][j].set_ylabel(metric)
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+
+    return fig, axs
