@@ -144,7 +144,7 @@ def run_experiments(config_path):
                     init_position=init_position,
                     init_m=init_m,
                     batch_size=len(samples) // n_batches,
-                    n_samples=mcmc_samples,  # Use mcmc_samples not n_samples here
+                    mcmc_samples=mcmc_samples,
                     step_size=step_size,
                     mdecay=mdecay,
                     num_integration_steps=1,
@@ -169,8 +169,11 @@ def run_experiments(config_path):
                 with open(trajectory_path, "wb") as f:
                     np.save(f, np.array(trajectory))
 
-                # Plot and save figure
-                fig, ax = plot_gmm_sampling(
+                fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+                plot_gmm_sampling(
+                    fig=fig,
+                    ax=axes,
                     trajectory=trajectory,
                     samples=samples,
                     means=means,
@@ -181,7 +184,7 @@ def run_experiments(config_path):
                     burnin=burnin,
                     xlim=None if xlim is None else xlim,
                     ylim=None if ylim is None else ylim,
-                    figsize=(10, 5),
+                    plot_type="both",
                 )
 
                 plot_path = exp_dir / "plot.png"

@@ -1,14 +1,11 @@
 experiment_name: minimal example
-seed: 567
-verbosity: 1
-plot:
-  xlim: [-3, 5]
-  ylim: [-1, 7]
+seeds:
+  - 567
+verbosity: 2
 data:
   means:
     - [[0,0]]
   covs:
-    - [[[5, 0], [0, 0.2]]]
     - [[[1, 0], [0, 1]]]
   weights:
     - [1]
