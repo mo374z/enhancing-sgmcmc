@@ -408,7 +408,7 @@ def plot_gmm_sampling(
             means=means,
             covs=covs,
             weights=weights,
-            title=title,
+            title="MCMC Sampling",
             burnin=burnin,
             plot_last_n_samples=plot_last_n_samples,
             padding=padding,
@@ -448,6 +448,8 @@ def plot_gmm_sampling(
                 frameon=False,
                 fontsize=8,
             )
+
+        fig.suptitle(title)
 
     else:
         raise ValueError(f"Invalid plot_type: {plot_type}")

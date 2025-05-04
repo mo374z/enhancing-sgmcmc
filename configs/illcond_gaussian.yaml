@@ -1,0 +1,33 @@
+experiment_name: illcond_gaussian
+seeds:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+verbosity: 2
+data:
+  means:
+    - [[0,0]]
+  covs:
+    - [[[5, 0], [0, 0.2]]]
+  weights:
+    - [1]
+  num_samples: 1000
+init_position:
+  - [[1.0,1.0]]
+mcmc_samples:
+  - 500
+burnin:
+  - 0
+n_batches:
+  - 5
+step_size:
+  - 0.05
+init_m:
+  - identity
+  - fisher
+mdecay:
+  - 0.02
+mresampling:
+  - 0.0

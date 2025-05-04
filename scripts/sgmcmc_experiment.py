@@ -13,7 +13,6 @@ import yaml
 from enhancing_sgmcmc.metrics import compute_metrics
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
 from enhancing_sgmcmc.utils import (
-    gaussian_mixture_logprob,
     generate_gmm_data,
     gmm_grad_estimator,
     plot_gmm_sampling,
@@ -179,7 +178,6 @@ def run_experiments(config_path):
                     means=means,
                     covs=covs,
                     weights=weights,
-                    gaussian_mixture_logprob=gaussian_mixture_logprob,
                     title="SGHMC Sampling",
                     burnin=burnin,
                     xlim=None if xlim is None else xlim,
