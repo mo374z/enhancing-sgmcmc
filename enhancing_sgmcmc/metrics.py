@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import jax
 import jax.numpy as jnp
@@ -9,8 +9,6 @@ from enhancing_sgmcmc.utils import gaussian_mixture_logprob
 
 def wasserstein_distance_approximation(samples: jnp.ndarray, true_samples: jnp.ndarray) -> float:
     """Efficient Wasserstein distance approximation using Sinkhorn algorithm."""
-    samples = jnp.array(samples)
-
     n_samples = samples.shape[0]
     n_true_samples = true_samples.shape[0]
 
@@ -18,9 +16,10 @@ def wasserstein_distance_approximation(samples: jnp.ndarray, true_samples: jnp.n
     b = jnp.ones((n_true_samples,)) / n_true_samples
 
     M = ot.dist(samples, true_samples)
-    reg = 0.01  # Regularization parameter for Sinkhorn distance (smaller values yield more accurate results)
+    reg = 0.01
 
-    return ot.sinkhorn2(a, b, M, reg)
+    wasserstein_dist = ot.sinkhorn2(a, b, M, reg)
+    return float(wasserstein_dist)
 
 
 def negative_log_likelihood(
@@ -29,10 +28,7 @@ def negative_log_likelihood(
     covs: jnp.ndarray,
     weights: jnp.ndarray,
 ) -> float:
-    """
-    Compute the negative log-likelihood of samples under the true Gaussian mixture distribution.
-    Higher values indicate worse fit between the empirical sample distribution and the true distribution.
-    """
+    """Compute the negative log-likelihood of samples under the true Gaussian mixture distribution."""
 
     def log_prob_for_sample(sample):
         return gaussian_mixture_logprob(sample, means, covs, weights)
@@ -46,17 +42,15 @@ def kernel_stein_discrepancy(
     score_fn: callable,
     kernel_bandwidth: Optional[float] = None,
 ) -> float:
-    """Compute Kernel Stein Discrepancy (KSD) between samples and target distribution. Lower values indicate better fit."""
+    """Compute Kernel Stein Discrepancy (KSD) between samples and target distribution."""
     n_samples = samples.shape[0]
 
-    # Use median heuristic for bandwidth if not provided
     if kernel_bandwidth is None:
         pairwise_dists = jnp.sum((samples[:, None, :] - samples[None, :, :]) ** 2, axis=-1)
         kernel_bandwidth = jnp.median(
             pairwise_dists[jnp.triu_indices(n_samples, k=1)]
         ) ** 0.5 / jnp.sqrt(2.0)
 
-    # Compute kernel matrix and its gradient
     diffs = samples[:, None, :] - samples[None, :, :]
     sq_dists = jnp.sum(diffs**2, axis=-1)
     K = jnp.exp(-sq_dists / (2 * kernel_bandwidth**2))
@@ -75,11 +69,8 @@ def kernel_stein_discrepancy(
 def effective_sample_size(
     samples: jnp.ndarray,
     max_lag: Optional[int] = None,
-) -> dict:
-    """
-    Compute Effective Sample Size (ESS) and related mixing diagnostics.
-    Higher ESS indicates better mixing.
-    """
+) -> Dict[str, float]:
+    """Compute Effective Sample Size (ESS) and related mixing diagnostics."""
     n_samples, dim = samples.shape
     if max_lag is None:
         max_lag = min(n_samples // 4, 250)
@@ -88,20 +79,16 @@ def effective_sample_size(
         x_centered = x - jnp.mean(x)
         var = jnp.var(x)
 
-        # Compute autocorrelation using FFT
         fft_values = jnp.fft.fft(x_centered, n=2 * len(x))
         acf = jnp.fft.ifft(fft_values * jnp.conj(fft_values)).real[: len(x)]
         acf = acf / (var * len(x))
         acf = acf[: max_lag + 1]
 
-        # Find cutoff for significant autocorrelation
-        cutoff_idx = jnp.argmax(acf[1:] < 0.05) + 1
-        if cutoff_idx == 1:  # No autocorrelation found below threshold
-            cutoff_idx = max_lag
+        # Use a mask-based approach instead of dynamic slicing
+        positive_mask = acf[1:] > 0.05
+        masked_acf = jnp.where(positive_mask, acf[1:], 0.0)
 
-        # Integrated autocorrelation time
-        iact = 1 + 2 * jnp.sum(acf[1:cutoff_idx])
-
+        iact = 1 + 2 * jnp.sum(masked_acf)
         ess = n_samples / iact
         return ess, iact
 
@@ -134,23 +121,39 @@ def compute_metrics(
     weights: Optional[jnp.ndarray] = None,
     metrics: List[str] = ["wasserstein", "nll", "ksd", "ess"],
     verbosity: int = 0,
-) -> dict:
-    """
-    Compute multiple metrics between sampler output and true distribution."""
+    **kwargs,
+) -> Dict[str, Any]:
+    """Compute multiple metrics between sampler output and true distribution."""
+    valid_metrics = {"wasserstein", "nll", "ksd", "ess"}
+    invalid_metrics = set(metrics) - valid_metrics
+
+    if invalid_metrics:
+        raise ValueError(f"Invalid metrics: {invalid_metrics}. Valid metrics are: {valid_metrics}")
+
     results = {}
 
-    if "wasserstein" in metrics and true_samples is not None:
+    if "wasserstein" in metrics:
+        if true_samples is None:
+            raise ValueError("Wasserstein distance requires true_samples")
         results["wasserstein"] = wasserstein_distance_approximation(samples, true_samples)
 
-    if "nll" in metrics and all(x is not None for x in [means, covs, weights]):
+    if "nll" in metrics:
+        if any(x is None for x in [means, covs, weights]):
+            raise ValueError("NLL requires means, covs, and weights")
         results["nll"] = negative_log_likelihood(samples, means=means, covs=covs, weights=weights)
 
-    if "ksd" in metrics and all(x is not None for x in [means, covs, weights]):
+    if "ksd" in metrics:
+        if any(x is None for x in [means, covs, weights]):
+            raise ValueError("KSD requires means, covs, and weights")
         score_fn = create_gmm_score_fn(means, covs, weights)
-        results["ksd"] = kernel_stein_discrepancy(samples, score_fn)
+        kernel_bandwidth = kwargs.get("kernel_bandwidth", None)
+        results["ksd"] = kernel_stein_discrepancy(
+            samples, score_fn, kernel_bandwidth=kernel_bandwidth
+        )
 
     if "ess" in metrics:
-        ess_results = effective_sample_size(samples)
+        max_lag = kwargs.get("max_lag", None)
+        ess_results = effective_sample_size(samples, max_lag=max_lag)
         results.update(ess_results)
 
     return results

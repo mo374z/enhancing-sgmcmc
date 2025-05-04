@@ -112,8 +112,7 @@ def run_sequential_sghmc(
     """Run SGHMC with sequential control over batches."""
     init_m = process_init_m(init_m, init_position, data)
     state = sampler.init_state(init_position, init_m)
-    trajectory = np.zeros((mcmc_samples, init_position.shape[0]))
-    trajectory[0] = np.array(state.position)
+    trajectory = jnp.array([init_position])
 
     key = jax.random.key(seed)
     batch_key, step_key = jax.random.split(key)
@@ -136,9 +135,7 @@ def run_sequential_sghmc(
             num_integration_steps=num_integration_steps,
             mresampling=mresampling,
         )
-
-        trajectory[i] = np.array(state.position)
-
+        trajectory = jnp.append(trajectory, jnp.array([state.position]), axis=0)
     return trajectory
 
 
@@ -177,6 +174,7 @@ def run_experiment(
     return data, trajectory
 
 
+# TODO: don't use numpy at all, use jax.numpy instead
 def plot_mcmc_sampling(
     ax: plt.Axes,
     trajectory: Optional[NDArray] = None,
