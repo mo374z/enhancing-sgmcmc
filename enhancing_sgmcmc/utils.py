@@ -329,7 +329,7 @@ def plot_gmm_sampling(
     means: Optional[NDArray] = None,
     covs: Optional[NDArray] = None,
     weights: Optional[NDArray] = None,
-    title: str = "MCMC Sampling",
+    title: str = None,
     burnin: int = 0,
     plot_last_n_samples: int = 0,
     padding: float = 0.5,
@@ -449,7 +449,8 @@ def plot_gmm_sampling(
                 fontsize=8,
             )
 
-        fig.suptitle(title)
+        if title:
+            fig.suptitle(title)
 
     else:
         raise ValueError(f"Invalid plot_type: {plot_type}")

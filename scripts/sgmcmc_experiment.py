@@ -46,8 +46,8 @@ def run_experiments(config_path):
 
     plot_config = config.get("plot")
     if plot_config is not None:
-        xlim = plot_config.get("xlim")
-        ylim = plot_config.get("ylim")
+        xlim = tuple(plot_config.get("xlim"))
+        ylim = tuple(plot_config.get("ylim"))
     else:
         xlim = None
         ylim = None
@@ -178,7 +178,7 @@ def run_experiments(config_path):
                     means=means,
                     covs=covs,
                     weights=weights,
-                    title="SGHMC Sampling",
+                    title=f"Step size: {step_size}, Momentum Decay: {mdecay}, Preconditioning: {init_m}",
                     burnin=burnin,
                     xlim=None if xlim is None else xlim,
                     ylim=None if ylim is None else ylim,
@@ -186,9 +186,6 @@ def run_experiments(config_path):
                 )
 
                 plot_path = exp_dir / "plot.png"
-                fig.suptitle(
-                    f"Experiment Results\n(Step size: {step_size}, Momentum Decay: {mdecay}, Preconditioning: {init_m})",
-                )
                 fig.savefig(plot_path, bbox_inches="tight")
                 plt.close(fig)
 

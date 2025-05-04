@@ -14,8 +14,7 @@ data:
   weights:
     - [1]
   num_samples: 1000
-init_position:
-  - [[1.0,1.0]]
+init_position: [1.0, 1.0]
 mcmc_samples:
   - 500
 burnin:
@@ -31,3 +30,6 @@ mdecay:
   - 0.02
 mresampling:
   - 0.0
+plot:
+  xlim: [-8, 8]
+  ylim: [-8, 8]
