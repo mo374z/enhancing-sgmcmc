@@ -41,25 +41,116 @@ def negative_log_likelihood(
     return -float(jnp.mean(log_probs))
 
 
+def kernel_stein_discrepancy(
+    samples: jnp.ndarray,
+    score_fn: callable,
+    kernel_bandwidth: Optional[float] = None,
+) -> float:
+    """Compute Kernel Stein Discrepancy (KSD) between samples and target distribution. Lower values indicate better fit."""
+    n_samples = samples.shape[0]
+
+    # Use median heuristic for bandwidth if not provided
+    if kernel_bandwidth is None:
+        pairwise_dists = jnp.sum((samples[:, None, :] - samples[None, :, :]) ** 2, axis=-1)
+        kernel_bandwidth = jnp.median(
+            pairwise_dists[jnp.triu_indices(n_samples, k=1)]
+        ) ** 0.5 / jnp.sqrt(2.0)
+
+    # Compute kernel matrix and its gradient
+    diffs = samples[:, None, :] - samples[None, :, :]
+    sq_dists = jnp.sum(diffs**2, axis=-1)
+    K = jnp.exp(-sq_dists / (2 * kernel_bandwidth**2))
+    grad_K = -diffs * K[..., None] / (kernel_bandwidth**2)
+
+    scores = jax.vmap(score_fn)(samples)
+
+    term1 = jnp.einsum("ij,ik,jk->", K, scores, scores)
+    term2 = 2 * jnp.einsum("ijk,jk->", grad_K, scores)
+    term3 = jnp.trace(grad_K, axis1=1, axis2=2).sum()
+
+    ksd = (term1 + term2 + term3) / (n_samples**2)
+    return float(ksd)
+
+
+def effective_sample_size(
+    samples: jnp.ndarray,
+    max_lag: Optional[int] = None,
+) -> dict:
+    """
+    Compute Effective Sample Size (ESS) and related mixing diagnostics.
+    Higher ESS indicates better mixing.
+    """
+    n_samples, dim = samples.shape
+    if max_lag is None:
+        max_lag = min(n_samples // 4, 250)
+
+    def compute_ess_1d(x):
+        x_centered = x - jnp.mean(x)
+        var = jnp.var(x)
+
+        # Compute autocorrelation using FFT
+        fft_values = jnp.fft.fft(x_centered, n=2 * len(x))
+        acf = jnp.fft.ifft(fft_values * jnp.conj(fft_values)).real[: len(x)]
+        acf = acf / (var * len(x))
+        acf = acf[: max_lag + 1]
+
+        # Find cutoff for significant autocorrelation
+        cutoff_idx = jnp.argmax(acf[1:] < 0.05) + 1
+        if cutoff_idx == 1:  # No autocorrelation found below threshold
+            cutoff_idx = max_lag
+
+        # Integrated autocorrelation time
+        iact = 1 + 2 * jnp.sum(acf[1:cutoff_idx])
+
+        ess = n_samples / iact
+        return ess, iact
+
+    ess_values, iact_values = jax.vmap(compute_ess_1d, in_axes=1, out_axes=0)(samples)
+
+    return {
+        "min_ess": float(jnp.min(ess_values)),
+        "mean_ess": float(jnp.mean(ess_values)),
+        "max_ess": float(jnp.max(ess_values)),
+        "ess_ratio": float(jnp.min(ess_values) / jnp.max(ess_values)),
+        "max_iact": float(jnp.max(iact_values)),
+        "mean_iact": float(jnp.mean(iact_values)),
+    }
+
+
+def create_gmm_score_fn(means, covs, weights):
+    """Create score function for Gaussian mixture using JAX autodiff."""
+
+    def score_fn(x):
+        return jax.grad(gaussian_mixture_logprob)(x, means, covs, weights)
+
+    return score_fn
+
+
 def compute_metrics(
     samples: jnp.ndarray,
     true_samples: Optional[jnp.ndarray],
     means: Optional[jnp.ndarray] = None,
     covs: Optional[jnp.ndarray] = None,
     weights: Optional[jnp.ndarray] = None,
-    metrics: List[str] = ["wasserstein", "nll"],
+    metrics: List[str] = ["wasserstein", "nll", "ksd", "ess"],
     verbosity: int = 0,
 ) -> dict:
     """
-    Compute multiple metrics between sampler output and true distribution.
-    """
-    if "wasserstein" in metrics:
-        w_dist = wasserstein_distance_approximation(samples, true_samples)
+    Compute multiple metrics between sampler output and true distribution."""
+    results = {}
 
-    if "nll" in metrics:
-        nll = negative_log_likelihood(samples, means=means, covs=covs, weights=weights)
+    if "wasserstein" in metrics and true_samples is not None:
+        results["wasserstein"] = wasserstein_distance_approximation(samples, true_samples)
 
-    return {
-        "wasserstein": float(w_dist) if "wasserstein" in metrics else None,
-        "nll": float(nll) if "nll" in metrics else None,
-    }
+    if "nll" in metrics and all(x is not None for x in [means, covs, weights]):
+        results["nll"] = negative_log_likelihood(samples, means=means, covs=covs, weights=weights)
+
+    if "ksd" in metrics and all(x is not None for x in [means, covs, weights]):
+        score_fn = create_gmm_score_fn(means, covs, weights)
+        results["ksd"] = kernel_stein_discrepancy(samples, score_fn)
+
+    if "ess" in metrics:
+        ess_results = effective_sample_size(samples)
+        results.update(ess_results)
+
+    return results
