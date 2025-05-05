@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Optional
 import jax
 import jax.numpy as jnp
 import ot
+from kernax.kernels import Gaussian, GetSteinFn
+from kernax.utils import median_heuristic
 
 from enhancing_sgmcmc.utils import gaussian_mixture_logprob
 
@@ -12,6 +14,7 @@ def wasserstein_distance_approximation(samples: jnp.ndarray, true_samples: jnp.n
     n_samples = samples.shape[0]
     n_true_samples = true_samples.shape[0]
 
+    # weight the samples uniformly according to their number of samples
     a = jnp.ones((n_samples,)) / n_samples
     b = jnp.ones((n_true_samples,)) / n_true_samples
 
@@ -28,7 +31,7 @@ def negative_log_likelihood(
     covs: jnp.ndarray,
     weights: jnp.ndarray,
 ) -> float:
-    """Compute the negative log-likelihood of samples under the true Gaussian mixture distribution."""
+    """Compute the average negative log-likelihood of samples under the true Gaussian mixture distribution."""
 
     def log_prob_for_sample(sample):
         return gaussian_mixture_logprob(sample, means, covs, weights)
@@ -39,30 +42,17 @@ def negative_log_likelihood(
 
 def kernel_stein_discrepancy(
     samples: jnp.ndarray,
-    score_fn: callable,
-    kernel_bandwidth: Optional[float] = None,
+    scores: jnp.ndarray,
 ) -> float:
     """Compute Kernel Stein Discrepancy (KSD) between samples and target distribution."""
-    n_samples = samples.shape[0]
+    lengthscale = jnp.array(median_heuristic(samples))
+    kernel_fn = jax.tree_util.Partial(Gaussian, lengthscale=lengthscale)
 
-    if kernel_bandwidth is None:
-        pairwise_dists = jnp.sum((samples[:, None, :] - samples[None, :, :]) ** 2, axis=-1)
-        kernel_bandwidth = jnp.median(
-            pairwise_dists[jnp.triu_indices(n_samples, k=1)]
-        ) ** 0.5 / jnp.sqrt(2.0)
-
-    diffs = samples[:, None, :] - samples[None, :, :]
-    sq_dists = jnp.sum(diffs**2, axis=-1)
-    K = jnp.exp(-sq_dists / (2 * kernel_bandwidth**2))
-    grad_K = -diffs * K[..., None] / (kernel_bandwidth**2)
-
-    scores = jax.vmap(score_fn)(samples)
-
-    term1 = jnp.einsum("ij,ik,jk->", K, scores, scores)
-    term2 = 2 * jnp.einsum("ijk,jk->", grad_K, scores)
-    term3 = jnp.trace(grad_K, axis1=1, axis2=2).sum()
-
-    ksd = (term1 + term2 + term3) / (n_samples**2)
+    kp_fn = GetSteinFn(kernel_fn)
+    kp = jax.vmap(lambda a, b: jax.vmap(lambda c, d: kp_fn(a, b, c, d))(samples, scores))(
+        samples, scores
+    )
+    ksd = jnp.sqrt(jnp.sum(kp)) / samples.shape[0]
     return float(ksd)
 
 
@@ -146,10 +136,8 @@ def compute_metrics(
         if any(x is None for x in [means, covs, weights]):
             raise ValueError("KSD requires means, covs, and weights")
         score_fn = create_gmm_score_fn(means, covs, weights)
-        kernel_bandwidth = kwargs.get("kernel_bandwidth", None)
-        results["ksd"] = kernel_stein_discrepancy(
-            samples, score_fn, kernel_bandwidth=kernel_bandwidth
-        )
+        scores = jax.vmap(score_fn)(samples)
+        results["ksd"] = kernel_stein_discrepancy(samples, scores)
 
     if "ess" in metrics:
         max_lag = kwargs.get("max_lag", None)

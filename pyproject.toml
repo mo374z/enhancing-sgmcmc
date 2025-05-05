@@ -12,6 +12,7 @@ pandas = "^2.2.3"
 jax = "^0.5.3"
 tqdm = "^4.67.1"
 pot = "^0.9.5"
+kernax = "^0.1.9"
 
 [tool.poetry.group.visualization.dependencies]
 matplotlib = "^3.10.1"

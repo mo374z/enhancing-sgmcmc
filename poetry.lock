@@ -46,6 +46,23 @@ tests = ["cloudpickle", "hypothesis", "mypy (>=1.11.1)", "pympler", "pytest (>=4
 tests-mypy = ["mypy (>=1.11.1)", "pytest-mypy-plugins"]
 
 [[package]]
+name = "blackjax"
+version = "0.9.6"
+description = "Flexible and fast inference in Python"
+optional = false
+python-versions = "*"
+files = [
+    {file = "blackjax-0.9.6-py3-none-any.whl", hash = "sha256:d1c20dd15a63944a7b5c835bac4900aadf8630bedb0d7e51ab7fc63255eb0dd7"},
+    {file = "blackjax-0.9.6.tar.gz", hash = "sha256:fb708f183d714750feb475fb87b8162fc1641309f30ee42fd38a5dec82733868"},
+]
+
+[package.dependencies]
+fastprogress = ">=0.2.0"
+jax = ">=0.3.13"
+jaxlib = ">=0.3.10"
+jaxopt = ">=0.4.2"
+
+[[package]]
 name = "cffi"
 version = "1.17.1"
 description = "Foreign Function Interface for Python calling C code."
@@ -337,6 +354,17 @@ files = [
 devel = ["colorama", "json-spec", "jsonschema", "pylint", "pytest", "pytest-benchmark", "pytest-cache", "validictory"]
 
 [[package]]
+name = "fastprogress"
+version = "1.0.3"
+description = "A nested progress with plotting options for fastai"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "fastprogress-1.0.3-py3-none-any.whl", hash = "sha256:6dfea88f7a4717b0a8d6ee2048beae5dbed369f932a368c5dd9caff34796f7c5"},
+    {file = "fastprogress-1.0.3.tar.gz", hash = "sha256:7a17d2b438890f838c048eefce32c4ded47197ecc8ea042cecc33d3deb8022f5"},
+]
+
+[[package]]
 name = "filelock"
 version = "3.18.0"
 description = "A platform independent file lock."
@@ -578,6 +606,23 @@ numpy = ">=1.25"
 scipy = ">=1.11.1"
 
 [[package]]
+name = "jaxopt"
+version = "0.8.5"
+description = "Hardware accelerated, batchable and differentiable optimizers in JAX."
+optional = false
+python-versions = "*"
+files = [
+    {file = "jaxopt-0.8.5-py3-none-any.whl", hash = "sha256:ff221d1a86908ec759eb1e219ee1d12bf208a70707e961bf7401076fe7cf4d5e"},
+    {file = "jaxopt-0.8.5.tar.gz", hash = "sha256:2790bd68ef132b216c083a8bc7a2704eceb35a92c0fc0a1e652e79dfb1e9e9ab"},
+]
+
+[package.dependencies]
+jax = ">=0.2.18"
+jaxlib = ">=0.1.69"
+numpy = ">=1.18.4"
+scipy = ">=1.0.0"
+
+[[package]]
 name = "jedi"
 version = "0.19.2"
 description = "An autocompletion tool for Python that can be used for text editors."
@@ -672,6 +717,24 @@ traitlets = ">=5.3"
 [package.extras]
 docs = ["myst-parser", "pydata-sphinx-theme", "sphinx-autodoc-typehints", "sphinxcontrib-github-alt", "sphinxcontrib-spelling", "traitlets"]
 test = ["ipykernel", "pre-commit", "pytest (<8)", "pytest-cov", "pytest-timeout"]
+
+[[package]]
+name = "kernax"
+version = "0.1.9"
+description = "Regularized Stein thinning using JAX"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "kernax-0.1.9-py3-none-any.whl", hash = "sha256:4e35d9dc2c2cf9fc5a3223ab4e3cc723954456bd9f17545eb3d568c23bee4ee7"},
+    {file = "kernax-0.1.9.tar.gz", hash = "sha256:dd5fdda982ca3ba549d1b080788c79fbc6a00842e9fe302be3114b2fe68aec0f"},
+]
+
+[package.dependencies]
+blackjax = "0.9.6"
+jax = "*"
+numpy = "*"
+scipy = "*"
+typing-extensions = ">=4.4.0"
 
 [[package]]
 name = "kiwisolver"
@@ -2003,4 +2066,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.12"
-content-hash = "eadc15c9d15f0cc32325154fd5f90fd851c77b397a0e1a98d63cc4351d68cafa"
+content-hash = "e3eb0e3513a7901da5215da2973c6e3f74868b7f3eec62a045bf13c93f48c951"
