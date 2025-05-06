@@ -60,13 +60,13 @@ def effective_sample_size(
     samples: jnp.ndarray,
     max_lag: Optional[int] = None,
 ) -> Dict[str, float]:
-    """Compute Effective Sample Size (ESS) and related mixing diagnostics."""
+    """Compute Effective Sample Size (ESS) for each dimension of the samples."""
     n_samples, dim = samples.shape
     if max_lag is None:
         max_lag = min(n_samples // 4, 250)
 
     def compute_ess_1d(x):
-        x_centered = x - jnp.mean(x)
+        x_centered = x - jnp.mean(x)  # center the data
         var = jnp.var(x)
 
         fft_values = jnp.fft.fft(x_centered, n=2 * len(x))
@@ -85,12 +85,9 @@ def effective_sample_size(
     ess_values, iact_values = jax.vmap(compute_ess_1d, in_axes=1, out_axes=0)(samples)
 
     return {
-        "min_ess": float(jnp.min(ess_values)),
         "mean_ess": float(jnp.mean(ess_values)),
-        "max_ess": float(jnp.max(ess_values)),
         "ess_ratio": float(jnp.min(ess_values) / jnp.max(ess_values)),
-        "max_iact": float(jnp.max(iact_values)),
-        "mean_iact": float(jnp.mean(iact_values)),
+        "ess_values": [float(ess) for ess in ess_values],
     }
 
 
