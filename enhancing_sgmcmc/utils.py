@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import yaml
-from numpy.typing import NDArray
 
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
 
@@ -154,10 +153,11 @@ def run_experiment(
     num_integration_steps=1,
     mresampling=0.0,
     seed=0,
-):
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """ "Run a full experiment with SGHMC."""
     sampler = SGHMC(grad_estimator=gmm_grad_estimator)
     data = generate_gmm_data(seed, means, covs, weights, n_samples=data_samples)
+
     trajectory = run_sequential_sghmc(
         sampler=sampler,
         init_position=init_position,
@@ -177,11 +177,11 @@ def run_experiment(
 # TODO: don't use numpy at all, use jax.numpy instead
 def plot_mcmc_sampling(
     ax: plt.Axes,
-    trajectory: Optional[NDArray] = None,
-    samples: Optional[NDArray] = None,
-    means: Optional[NDArray] = None,
-    covs: Optional[NDArray] = None,
-    weights: Optional[NDArray] = None,
+    trajectory: Optional[jnp.ndarray] = None,
+    samples: Optional[jnp.ndarray] = None,
+    means: Optional[jnp.ndarray] = None,
+    covs: Optional[jnp.ndarray] = None,
+    weights: Optional[jnp.ndarray] = None,
     title: str = "MCMC Sampling",
     burnin: int = 0,
     plot_last_n_samples: int = 0,
@@ -298,7 +298,7 @@ def plot_mcmc_sampling(
 
 def plot_coordinates_over_time(
     ax: plt.Axes,
-    trajectory: NDArray,
+    trajectory: jnp.ndarray,
     burnin: int = 0,
     title: str = "Coordinates over time",
 ) -> None:
@@ -321,14 +321,15 @@ def plot_coordinates_over_time(
     ax.grid(True, alpha=0.3)
 
 
+# TODO: check performance and improve if possible
 def plot_gmm_sampling(
     fig: plt.Figure,
     ax: Union[plt.Axes, List[plt.Axes]],
-    trajectory: Optional[NDArray] = None,
-    samples: Optional[NDArray] = None,
-    means: Optional[NDArray] = None,
-    covs: Optional[NDArray] = None,
-    weights: Optional[NDArray] = None,
+    trajectory: Optional[jnp.ndarray] = None,
+    samples: Optional[jnp.ndarray] = None,
+    means: Optional[jnp.ndarray] = None,
+    covs: Optional[jnp.ndarray] = None,
+    weights: Optional[jnp.ndarray] = None,
     title: str = None,
     burnin: int = 0,
     plot_last_n_samples: int = 0,
@@ -397,7 +398,7 @@ def plot_gmm_sampling(
 
     elif plot_type == "both":
         # For both plots, expect a list of axes
-        if not isinstance(ax, (list, np.ndarray)) or len(ax) < 2:
+        if len(ax) < 2:
             raise ValueError("For plot_type='both', ax must be a list or array of at least 2 axes")
 
         # Plot sampling on the first subplot

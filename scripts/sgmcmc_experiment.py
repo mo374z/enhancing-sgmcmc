@@ -206,20 +206,21 @@ def run_experiments(config_path):
                     "experiment_id": exp_id,
                     "seed": seed,
                     "data_config_id": data_idx,
-                    "parameters": {
-                        "init_m": init_m.tolist(),
-                        "step_size": step_size,
-                        "mdecay": mdecay,
-                        "burnin": burnin,
-                        "mcmc_samples": mcmc_samples,
-                        "n_batches": n_batches,
-                        "mresampling": mresampling,
-                    },
                     "data": {
                         "means": [m.tolist() for m in means],
                         "covs": [cov.tolist() for cov in covs],
                         "weights": weights.tolist(),
                         "num_samples": n_samples,
+                    },
+                    "parameters": {
+                        "init_position": init_position.tolist(),
+                        "mcmc_samples": mcmc_samples,
+                        "burnin": burnin,
+                        "n_batches": n_batches,
+                        "step_size": step_size,
+                        "init_m": init_m.tolist(),
+                        "mdecay": mdecay,
+                        "mresampling": mresampling,
                     },
                     "results": {
                         "trajectory_path": str(trajectory_path),
@@ -242,7 +243,7 @@ def run_experiments(config_path):
 
                 metadata_path = exp_dir / "metadata.yaml"
                 with open(metadata_path, "w") as f:
-                    yaml.dump(metadata, f)
+                    yaml.dump(metadata, f, sort_keys=False)
 
                 if verbosity > 1:
                     print("Metrics:")
