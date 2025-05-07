@@ -1,19 +1,8 @@
-\chapter{Introduction}\label{chap:introduction}
+\section{Introduction} \label{chap:introduction}
 
-\section{Motivation}
+\subsection{Motivation}
 
-\begin{itemize}
-    \item best case would be to compute the inverse Fisher Information Matrix in eqch stap as preconditioning to apply to local geometry of the current position
-    \item cannot be done in our \acrshort{MCMC} preconditioning context since it is much to expensive to estimate the FIM in every step from scratch
-    \item we cannot do a Hessian approximation like RmsProp or Adam, but this depens on previous steps and therefor does not meet the markov property (MCMC theory breaks)
-    \item this is why we optimize first optaining a high likelihood soultion and a rough estimation of the local geometry (via Adam like Hessia approximation or IVON)
-    \item using this information might help with shortening the warmup/burnin phase without hurting the performance
-    \item during sampling we then want to efficiently sampe the local part of the high dimensional posterior
-    \item multimodality is then represented through ensembling and lengthy markov chains
-\end{itemize}
-
-
-\section{Problem}
+\subsection{Problem}
 
 \begin{itemize}
     \item in high dimensional, complex posteriors we are often confronted with ill-conditioned Hessians
@@ -24,23 +13,16 @@
 Note: the visualizations show the true density in the background, while compute the steps of the MCMC sampler on samples of the log density.
 
 
-\section{Approach}
+\subsection{Research Objective}
 
 \begin{itemize}
     \item use preconditioning
+    \item
 \end{itemize}
 
-% In many cases, the thesis will be about a new approach to a known problem.
-% In this case, describe the approach in reasonably general terms, without getting too technical.
-% The reader should understand what the new idea is that is being used.
+By investigating this research objective we contribute to the field of MCMC sampling in the following ways:...
 
-% If the thesis is more about highlighting a new aspect of known methods, e.g.\ evaluating runtime complexity of methods for which runtime was not systematically measured in the literature, this should be described here instead (possibly with a title that is not ``Approach'').
+Name here what was developed in the end and how it contributes to the field.
 
-% It may help to define various ``research questions'' that are being investigated.
-% These can even be numbered and referred to in later parts of the text, e.g.\ to describe which experiments were conducted to answer which kinds of questions.
 
-\section{Outline}
-
-% Outline of the thesis.
-% What is in each chapter? What is the structure of the thesis?
-% E.g.\ ``\cref{chap:background} presents the theoretical background that is relevant for the thesis, particularly mathematical concepts and algorithms''.
+\subsection{Outline}

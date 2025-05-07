@@ -1,0 +1,12 @@
+\section{Method} \label{sec:method}
+\subsection{General Idea} \label{sec:general_idea}
+
+\begin{itemize}
+    \item best case would be to compute the inverse Fisher Information Matrix in each step as preconditioning to apply to local geometry of the current position
+    \item cannot be done in our MCMC preconditioning context since it is much to expensive to estimate the FIM in every step from scratch
+    \item we cannot do a Hessian approximation like RmsProp or Adam, since they utilize values depending which depend on previous steps. This does then not meet meet the markov property (MCMC theory breaks)
+    \item this is why we optimize first obtaining a high likelihood soultion and a rough estimation of the local geometry (via Adam like Hessia approximation or IVON)
+    \item using this information might help shorten the warmup/burnin phase without hurting the performance
+    \item during sampling we then want to efficiently sample the a local subspace of the high dimensional posterior where the optimizer landed
+    \item multimodality is tackled through ensembling and lengthy markov chains
+\end{itemize}
