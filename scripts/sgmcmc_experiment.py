@@ -168,6 +168,11 @@ def run_experiments(config_path):
                 with open(trajectory_path, "wb") as f:
                     np.save(f, np.array(trajectory))
 
+                # Save samples
+                samples_path = exp_dir / "samples.npy"
+                with open(samples_path, "wb") as f:
+                    np.save(f, np.array(samples))
+
                 fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
                 plot_gmm_sampling(

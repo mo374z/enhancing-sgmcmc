@@ -1,4 +1,3 @@
-#TODO: do a more easy example with only two modes
 experiment_name: mixture_gaussian
 seeds:
   - 1

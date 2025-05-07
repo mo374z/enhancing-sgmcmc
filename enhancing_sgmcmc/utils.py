@@ -4,7 +4,6 @@ from typing import List, Literal, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import yaml
@@ -12,23 +11,42 @@ import yaml
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
 
 
+@jax.jit
 def gaussian_mixture_logprob(x, means, covs, weights):
-    """Log probability of a Gaussian mixture model."""
+    """Optimized log probability of a Gaussian mixture model.
+    Works with both single points and batches of points."""
+    # Handle both single points and batches seamlessly
+    is_single_point = x.ndim == 1
+    if is_single_point:
+        x = x[None, :]
 
-    def single_gaussian_logprob(x, mean, cov):
-        d = x.shape[0]
-        delta = x - mean
-        return -0.5 * (
-            d * jnp.log(2 * jnp.pi)
-            + jnp.log(jnp.linalg.det(cov))
-            + delta.T @ jnp.linalg.solve(cov, delta)
-        )
-
-    logprobs = jnp.array(
-        [jnp.log(w) + single_gaussian_logprob(x, m, c) for w, m, c in zip(weights, means, covs)]
+    # Pre-compute constants for each component
+    d = means.shape[1]
+    constants = jnp.array(
+        [
+            jnp.log(w) - 0.5 * (d * jnp.log(2 * jnp.pi) + jnp.log(jnp.linalg.det(cov)))
+            for w, cov in zip(weights, covs)
+        ]
     )
 
-    return jax.nn.logsumexp(logprobs)
+    # Vectorized computation for all points and all components
+    def component_logprob(component_idx):
+        mean = means[component_idx]
+        cov = covs[component_idx]
+        constant = constants[component_idx]
+
+        delta = x - mean
+        quadratic = jnp.sum((delta @ jnp.linalg.inv(cov)) * delta, axis=1)
+        return constant - 0.5 * quadratic
+
+    # Compute log probabilities for all components (vectors of length batch_size)
+    component_logprobs = jnp.stack(
+        [component_logprob(i) for i in range(len(weights))], axis=1
+    )  # (batch_size, n_components)
+
+    logprobs = jax.nn.logsumexp(component_logprobs, axis=1)
+
+    return logprobs[0] if is_single_point else logprobs
 
 
 def generate_gmm_data(seed, means, covs, weights, n_samples=1000):
@@ -174,7 +192,6 @@ def run_experiment(
     return data, trajectory
 
 
-# TODO: don't use numpy at all, use jax.numpy instead
 def plot_mcmc_sampling(
     ax: plt.Axes,
     trajectory: Optional[jnp.ndarray] = None,
@@ -195,7 +212,6 @@ def plot_mcmc_sampling(
     """Plot MCM sampling trajectory and optionally GMM density."""
     cmap = plt.get_cmap("Dark2")
 
-    # Compute plot ranges automatically if not provided
     if xlim is None or ylim is None:
         all_data = []
         if trajectory is not None:
@@ -205,16 +221,13 @@ def plot_mcmc_sampling(
         if means is not None:
             all_data.append(means)
 
-        # Compute bounds from all available data
         if all_data:
-            all_points = np.vstack([d for d in all_data if len(d) > 0])
+            all_points = jnp.vstack([d for d in all_data if len(d) > 0])
             x_min, y_min = all_points.min(axis=0) - padding
             x_max, y_max = all_points.max(axis=0) + padding
         else:
-            # default limits
             x_min, x_max, y_min, y_max = -10, 10, -10, 10
 
-        # Use custom limits if provided
         if xlim is not None:
             x_min, x_max = xlim
         if ylim is not None:
@@ -223,35 +236,33 @@ def plot_mcmc_sampling(
         x_min, x_max = xlim
         y_min, y_max = ylim
 
-    # Plot density contours if requested
     if plot_density is not None and means is not None and covs is not None and weights is not None:
-        x = np.linspace(x_min, x_max, 100)
-        y = np.linspace(y_min, y_max, 100)
-        X, Y = np.meshgrid(x, y)
-        Z = np.zeros_like(X)
-        Z_log = np.zeros_like(X)
+        x = jnp.linspace(x_min, x_max, 100)
+        y = jnp.linspace(y_min, y_max, 100)
+        X, Y = jnp.meshgrid(x, y)
 
-        for i in range(X.shape[0]):
-            for j in range(X.shape[1]):
-                point = jnp.array([X[i, j], Y[i, j]])
-                Z[i, j] = np.exp(gaussian_mixture_logprob(point, means, covs, weights))
-                Z_log[i, j] = gaussian_mixture_logprob(point, means, covs, weights)
+        X_flat = X.flatten()
+        Y_flat = Y.flatten()
+
+        points = jnp.stack([X_flat, Y_flat], axis=1)
+        log_probs = gaussian_mixture_logprob(points, means, covs, weights)
+
+        Z_log = log_probs.reshape(X.shape)
+        Z = jnp.exp(Z_log)
 
         if plot_density == "log":
-            Z = Z_log
-        ax.contour(X, Y, Z, levels=15, cmap="coolwarm_r", alpha=0.5)
+            ax.contour(X, Y, Z_log, levels=15, cmap="coolwarm_r", alpha=0.5)
+        else:
+            ax.contour(X, Y, Z, levels=15, cmap="coolwarm_r", alpha=0.5)
 
-    # Plot Gaussian component means if requested
     if show_means and means is not None:
         for mean in means:
             ax.scatter(mean[0], mean[1], c="red", s=50, marker="*")
         ax.scatter([], [], c="red", s=50, marker="*", label="Gaussian means")
 
-    # Plot data samples if requested
     if show_samples and samples is not None:
         ax.scatter(samples[:, 0], samples[:, 1], c="gray", s=10, alpha=1, label="Data samples")
 
-    # Plot MCMC trajectory if available
     if trajectory is not None:
         if burnin > 0:
             ax.plot(
@@ -321,7 +332,6 @@ def plot_coordinates_over_time(
     ax.grid(True, alpha=0.3)
 
 
-# TODO: check performance and improve if possible
 def plot_gmm_sampling(
     fig: plt.Figure,
     ax: Union[plt.Axes, List[plt.Axes]],
