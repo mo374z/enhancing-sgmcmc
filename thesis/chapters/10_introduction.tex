@@ -1,28 +1,35 @@
-\section{Introduction} \label{chap:introduction}
+\section{Introduction}\label{chap:introduction}
 
 \subsection{Motivation}
 
 \subsection{Problem}
 
 \begin{itemize}
-    \item in high dimensional, complex posteriors we are often confronted with ill-conditioned Hessians
-    \item this might lead to slow convergence when the sampler is not able to accord to this
+    \item in high dimensional, complex posteriors we are often confronted with
+          ill-conditioned modes
+    \item this might lead to slow convergence when the sampler is not able to adapt to
+          the local curvature of the posterior
     \item we can show this effect on some simple gaussian (mixture) examples
 \end{itemize}
 
-Note: the visualizations show the true density in the background, while compute the steps of the MCMC sampler on samples of the log density.
-
+Note: the visualizations show the true density in the background, while compute
+the steps of the MCMC sampler on samples of the log density.
 
 \subsection{Research Objective}
 
 \begin{itemize}
-    \item use preconditioning
-    \item
+    \item preconditioning the MCMC sampler to accord to the local curvature of the
+          posterior
+    \item investigate whether this leads to better uncertainty quantification and
+          convergence properties
+    \item investigate whether this leads to better exploration of the posterior (detect
+          multi-modality)
 \end{itemize}
 
-By investigating this research objective we contribute to the field of MCMC sampling in the following ways:...
-
-Name here what was developed in the end and how it contributes to the field.
-
+This contributes to the fields in the way, that overall less samples/shorter
+chains are needed to achieve resonably good results.
 
 \subsection{Outline}
+
+
+\newpage
