@@ -114,11 +114,11 @@ def generate_minibatch(key, minibatch_size, all_samples):
 
 
 def run_sequential_sghmc(
-    sampler,
-    init_position,
-    data,
-    mcmc_samples,
-    batch_size,
+    sampler: SGHMC,
+    init_position: jnp.ndarray,
+    data: jnp.ndarray,
+    mcmc_samples: int,
+    batch_size: int,
     init_m=None,
     step_size=0.05,
     mdecay=0.05,

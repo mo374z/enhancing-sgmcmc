@@ -1,5 +1,5 @@
 \section{Method}\label{sec:method}
-\subsection{General Idea}\label{sec:general_idea}
+\subsection{Background \& General Feasibility}\label{sec:general_idea}
 
 \begin{itemize}
     \item best case would be to compute the inverse Fisher Information Matrix in each step as preconditioning to apply to local geometry of the current position
@@ -9,6 +9,16 @@
     \item using this information might help shorten the warmup/burnin phase without hurting the performance
     \item during sampling we then want to efficiently sample the a local subspace of the high dimensional posterior where the optimizer landed
     \item multimodality is tackled through ensembling and lengthy markov chains
+\end{itemize}
+
+\subsection{Metrics}
+\begin{itemize}
+    \item explain how impact of preconditioning is measured and what we aim for
+\end{itemize}
+
+\subsection{Approach}
+\begin{itemize}
+    \item formalize the preconditioning step
 \end{itemize}
 
 \newpage
