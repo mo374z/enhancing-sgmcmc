@@ -1,4 +1,4 @@
-experiment_name: illcond_gaussian
+experiment_name: illcond_gaussian_2
 seeds:
   - 1
   - 2
