@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import yaml
+from jax.scipy.stats import multivariate_normal
 
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
 
@@ -71,38 +72,53 @@ def generate_gmm_data(seed, means, covs, weights, n_samples=1000):
     return samples
 
 
-def gmm_logprob_data(position, samples, reg=1.0):
-    """Log probability using generated data samples."""
-    diff = samples - position
-    # Simple kernel density estimate
-    kernel_values = -0.5 * jnp.sum(diff**2, axis=1) / reg
-    return jax.nn.logsumexp(kernel_values) - jnp.log(len(samples))
+def gmm_logprob(x, means, covs, weights):
+    """Calculate the log probability of a Gaussian mixture model at point x."""
+    n_components = means.shape[0]
+    weights = weights / jnp.sum(weights)
+
+    component_log_probs = jnp.zeros(n_components)
+
+    for i in range(n_components):
+        component_log_probs = component_log_probs.at[i].set(
+            jnp.log(weights[i]) + multivariate_normal.logpdf(x, means[i], covs[i])
+        )
+    return jax.nn.logsumexp(component_log_probs)
 
 
-def gmm_grad_estimator(position, samples):
-    """Gradient estimator using data samples (batch size agnostic)."""
-    logprob = gmm_logprob_data(position, samples)
-    return logprob, jax.grad(gmm_logprob_data)(position, samples)
+def gmm_grad(x, means, covs, weights):
+    """Calculate the log probability and its gradient for a GMM at point x."""
+    gmm_grad = jax.grad(gmm_logprob, argnums=0)
+    return gmm_grad(x, means, covs, weights)
 
 
-def process_init_m(value, init_position, data, covs: Optional[jnp.ndarray] = None):
+def gmm_score_function(means, covs, weights):
+    """Create a score function for the Gaussian mixture model."""
+
+    def score_fn(x):
+        return jax.grad(gmm_logprob)(x, means, covs, weights)
+
+    return score_fn
+
+
+def process_init_m(
+    value,
+    data: Optional[jnp.ndarray] = None,
+    means: Optional[jnp.ndarray] = None,
+    covs: Optional[jnp.ndarray] = None,
+    weights: Optional[jnp.ndarray] = None,
+):
     """Process the init_m value from the config file."""
-    if value == "identity":
+    if value == "identity" or value is None:
         return jnp.array([1.0, 1.0])
     elif value == "fisher_approx":
-        return compute_fisher_diagonal(init_position, data)
+        grads = jax.vmap(lambda x: gmm_grad(x, means, covs, weights))(data)
+        return jnp.mean(grads**2, axis=0)
     elif value == "fisher_exact":
         fisher_matrix = jnp.array([jnp.linalg.inv(cov) for cov in covs])
         return jnp.diag(fisher_matrix.mean(axis=0))
     else:
         return jnp.array(value)
-
-
-def compute_fisher_diagonal(position, data):
-    """Compute diagonal Fisher Information Matrix approximation with JIT."""
-    batch_grad_fn = jax.vmap(lambda sample: jax.grad(gmm_logprob_data)(position, sample[None, :]))
-    all_grads = batch_grad_fn(data)
-    return jnp.mean(all_grads**2, axis=0)
 
 
 def generate_minibatch(key, minibatch_size, all_samples):
@@ -117,7 +133,7 @@ def run_sequential_sghmc(
     data: jnp.ndarray,
     mcmc_samples: int,
     batch_size: int,
-    init_m=None,
+    init_m: jnp.ndarray,
     step_size=0.05,
     mdecay=0.05,
     num_integration_steps=1,
@@ -125,7 +141,6 @@ def run_sequential_sghmc(
     seed=0,
 ):
     """Run SGHMC with sequential control over batches."""
-    init_m = process_init_m(init_m, init_position, data)
     state = sampler.init_state(init_position, init_m)
     trajectory = jnp.array([init_position])
 
@@ -171,8 +186,9 @@ def run_experiment(
     seed=0,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """ "Run a full experiment with SGHMC."""
-    sampler = SGHMC(grad_estimator=gmm_grad_estimator)
+    sampler = SGHMC(grad_estimator=gmm_grad)
     data = generate_gmm_data(seed, means, covs, weights, n_samples=data_samples)
+    init_m = process_init_m(init_m, data=data, means=means, covs=covs, weights=weights)
 
     trajectory = run_sequential_sghmc(
         sampler=sampler,
@@ -243,7 +259,7 @@ def plot_mcmc_sampling(
         Y_flat = Y.flatten()
 
         points = jnp.stack([X_flat, Y_flat], axis=1)
-        log_probs = gaussian_mixture_logprob(points, means, covs, weights)
+        log_probs = jax.vmap(lambda pt: gmm_logprob(pt, means, covs, weights))(points)
 
         Z_log = log_probs.reshape(X.shape)
         Z = jnp.exp(Z_log)

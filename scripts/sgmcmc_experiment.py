@@ -57,7 +57,7 @@ def run_experiments(config_path):
     burnin_values = config.get("burnin")
     mcmc_samples_values = config.get("mcmc_samples")
     n_batches_values = config.get("n_batches")
-    init_m_values = config.get("init_m")
+    init_m_types = config.get("init_m")
     mdecay_values = config.get("mdecay")
     mresampling_values = config.get("mresampling")
     init_position = jnp.array(config.get("init_position", [0.0, 0.0]))  # Default if not provided
@@ -102,15 +102,10 @@ def run_experiments(config_path):
                 for cov in covs:
                     print(jnp.linalg.inv(cov))
 
-            # Process init_m values for this data configuration
-            processed_init_m = []
-            for im in init_m_values:
-                processed_init_m.append(process_init_m(im, init_position, samples))
-
             # Create parameter grid for this data configuration
             param_grid = list(
                 product(
-                    processed_init_m,
+                    init_m_types,
                     step_size_values,
                     mdecay_values,
                     burnin_values,
@@ -122,7 +117,7 @@ def run_experiments(config_path):
 
             # Run experiments for each parameter combination
             for i, (
-                init_m,
+                init_m_type,
                 step_size,
                 mdecay,
                 burnin,
@@ -130,6 +125,8 @@ def run_experiments(config_path):
                 n_batches,
                 mresampling,
             ) in enumerate(param_grid):
+                init_m = process_init_m(init_m_type, samples, means, covs, weights)
+
                 if verbosity > 0:
                     print("=" * 10 + f" EXPERIMENT ({i + 1}/{len(param_grid)}) " + "=" * 11)
                 if verbosity > 1:
@@ -224,6 +221,7 @@ def run_experiments(config_path):
                         "n_batches": n_batches,
                         "step_size": step_size,
                         "init_m": init_m.tolist(),
+                        "init_m_type": init_m_type,
                         "mdecay": mdecay,
                         "mresampling": mresampling,
                     },

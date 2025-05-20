@@ -41,13 +41,22 @@ class SGHMC:
             """Get ones with the shape of position."""
             return jax.tree.map(jnp.ones_like, self.position)
 
-    def __init__(self, grad_estimator: Callable):
+    def __init__(
+        self,
+        grad_estimator: Callable,
+        means: jnp.ndarray = None,
+        covs: jnp.ndarray = None,
+        weights: jnp.ndarray = None,
+    ):
         """Initialize the SGHMC sampler.
 
         Args:
             grad_estimator: Function to compute gradient of log density
         """
         self._grad_estimator = grad_estimator
+        self.means = means
+        self.covs = covs
+        self.weights = weights
 
     def init_state(self, position, elementwise_sd=None) -> State:
         """Initialize the sampler state."""
@@ -115,8 +124,7 @@ class SGHMC:
     ) -> State:
         """Update gradient values."""
         max_grad = 1e6  # Gradient clipping threshold
-        x, _ = minibatch
-        _, grad = self._grad_estimator(state.position, x)
+        grad = self._grad_estimator(state.position, self.means, self.covs, self.weights)
         state.logdensity_grad = jax.tree.map(
             lambda g: jnp.where(jnp.isnan(g), 0.0, jnp.clip(g, -max_grad, max_grad)),
             grad,

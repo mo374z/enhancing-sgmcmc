@@ -1,4 +1,4 @@
-experiment_name: illcond_gaussian_2
+experiment_name: illcond_gaussian_4
 seeds:
   - 1
   - 2
@@ -17,6 +17,7 @@ data:
 init_position: [1.0, 1.0]
 mcmc_samples:
   - 500
+  - 1000
 burnin:
   - 0
 n_batches:
@@ -25,7 +26,8 @@ step_size:
   - 0.05
 init_m:
   - identity
-  - fisher
+  - fisher_approx
+  - fisher_exact
 mdecay:
   - 0.02
 mresampling:

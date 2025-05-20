@@ -6,11 +6,11 @@ import ot
 from kernax.kernels import Gaussian, GetSteinFn
 from kernax.utils import median_heuristic
 
-from enhancing_sgmcmc.utils import gaussian_mixture_logprob
+from enhancing_sgmcmc.utils import gmm_logprob, gmm_score_function
 
 
 def wasserstein_distance_approximation(samples: jnp.ndarray, true_samples: jnp.ndarray) -> float:
-    """Efficient Wasserstein distance approximation using Sinkhorn algorithm."""
+    """Efficient Wasserstein distance approximation using Sinkhorn algorithm. Should be minimized."""
     n_samples = samples.shape[0]
     n_true_samples = true_samples.shape[0]
 
@@ -31,10 +31,10 @@ def negative_log_likelihood(
     covs: jnp.ndarray,
     weights: jnp.ndarray,
 ) -> float:
-    """Compute the average negative log-likelihood of samples under the true Gaussian mixture distribution."""
+    """Compute the average negative log-likelihood of samples under the true Gaussian mixture distribution. Should be minimized."""
 
     def log_prob_for_sample(sample):
-        return gaussian_mixture_logprob(sample, means, covs, weights)
+        return gmm_logprob(sample, means, covs, weights)
 
     log_probs = jax.vmap(log_prob_for_sample)(samples)
     return -float(jnp.mean(log_probs))
@@ -44,7 +44,7 @@ def kernel_stein_discrepancy(
     samples: jnp.ndarray,
     scores: jnp.ndarray,
 ) -> float:
-    """Compute Kernel Stein Discrepancy (KSD) between samples and target distribution."""
+    """Compute Kernel Stein Discrepancy (KSD) between samples and target distribution. Should be minimized."""
     lengthscale = jnp.array(median_heuristic(samples))
     kernel_fn = jax.tree_util.Partial(Gaussian, lengthscale=lengthscale)
 
@@ -60,7 +60,7 @@ def effective_sample_size(
     samples: jnp.ndarray,
     max_lag: Optional[int] = None,
 ) -> Dict[str, float]:
-    """Compute Effective Sample Size (ESS) for each dimension of the samples."""
+    """Compute Effective Sample Size (ESS) for each dimension of the samples. Should be maximized."""
     n_samples, dim = samples.shape
     if max_lag is None:
         max_lag = min(n_samples // 4, 250)
@@ -89,15 +89,6 @@ def effective_sample_size(
         "ess_ratio": float(jnp.min(ess_values) / jnp.max(ess_values)),
         "ess_values": [float(ess) for ess in ess_values],
     }
-
-
-def create_gmm_score_fn(means, covs, weights):
-    """Create score function for Gaussian mixture using JAX autodiff."""
-
-    def score_fn(x):
-        return jax.grad(gaussian_mixture_logprob)(x, means, covs, weights)
-
-    return score_fn
 
 
 def compute_metrics(
@@ -132,7 +123,7 @@ def compute_metrics(
     if "ksd" in metrics:
         if any(x is None for x in [means, covs, weights]):
             raise ValueError("KSD requires means, covs, and weights")
-        score_fn = create_gmm_score_fn(means, covs, weights)
+        score_fn = gmm_score_function(means, covs, weights)
         scores = jax.vmap(score_fn)(samples)
         results["ksd"] = kernel_stein_discrepancy(samples, scores)
 
