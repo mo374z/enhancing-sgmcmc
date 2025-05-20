@@ -85,26 +85,24 @@ def gmm_grad_estimator(position, samples):
     return logprob, jax.grad(gmm_logprob_data)(position, samples)
 
 
-def process_init_m(value, init_position, data):
+def process_init_m(value, init_position, data, covs: Optional[jnp.ndarray] = None):
     """Process the init_m value from the config file."""
     if value == "identity":
         return jnp.array([1.0, 1.0])
-    elif value == "fisher":
-        # high-level, fast approximation
-        # appr_, grad = gmm_grad_estimator(init_position, data)
-        # return 1 / jnp.sqrt(grad**2)
+    elif value == "fisher_approx":
         return compute_fisher_diagonal(init_position, data)
+    elif value == "fisher_exact":
+        fisher_matrix = jnp.array([jnp.linalg.inv(cov) for cov in covs])
+        return jnp.diag(fisher_matrix.mean(axis=0))
     else:
         return jnp.array(value)
 
 
-@jax.jit
 def compute_fisher_diagonal(position, data):
     """Compute diagonal Fisher Information Matrix approximation with JIT."""
     batch_grad_fn = jax.vmap(lambda sample: jax.grad(gmm_logprob_data)(position, sample[None, :]))
     all_grads = batch_grad_fn(data)
-    fisher_diagonal = jnp.mean(all_grads**2, axis=0)
-    return 1 / jnp.sqrt(fisher_diagonal + 1e-8)
+    return jnp.mean(all_grads**2, axis=0)
 
 
 def generate_minibatch(key, minibatch_size, all_samples):
