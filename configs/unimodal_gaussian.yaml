@@ -1,4 +1,4 @@
-experiment_name: unimodal_gaussian
+experiment_name: unimodal_gaussian_2
 seeds:
   - 1
   - 2
@@ -12,9 +12,9 @@ data:
     - [[[5, 0], [0, 0.2]]]
   weights:
     - [1]
-  num_samples: 2000
+  num_samples: 500
 mcmc_samples:
-  - 2000
+  - 500
 burnin:
   - 0
 n_batches:
@@ -24,9 +24,12 @@ step_size:
   - 0.05
 init_m:
   - identity
-  - fisher
+  - fisher_approx
 mdecay:
   - 0.01
   - 0.05
 mresampling:
   - 0.0
+plot:
+  xlim: [-8, 8]
+  ylim: [-8, 8]

@@ -86,6 +86,7 @@ def gmm_logprob(x, means, covs, weights):
     return jax.nn.logsumexp(component_log_probs)
 
 
+@jax.jit
 def gmm_grad(x, means, covs, weights):
     """Calculate the log probability and its gradient for a GMM at point x."""
     gmm_grad = jax.grad(gmm_logprob, argnums=0)
@@ -186,7 +187,7 @@ def run_experiment(
     seed=0,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """ "Run a full experiment with SGHMC."""
-    sampler = SGHMC(grad_estimator=gmm_grad)
+    sampler = SGHMC(grad_estimator=gmm_grad, means=means, covs=covs, weights=weights)
     data = generate_gmm_data(seed, means, covs, weights, n_samples=data_samples)
     init_m = process_init_m(init_m, data=data, means=means, covs=covs, weights=weights)
 
@@ -481,7 +482,7 @@ def plot_gmm_sampling(
         raise ValueError(f"Invalid plot_type: {plot_type}")
 
 
-def load_experiment_data(experiment_name: str) -> pd.DataFrame:
+def load_experiment_data(experiment_name: str, remove_duplicates: bool = False) -> pd.DataFrame:
     """
     Load experiment data from YAML files.
     """
@@ -496,6 +497,22 @@ def load_experiment_data(experiment_name: str) -> pd.DataFrame:
         df = pd.concat([df, df_temp], ignore_index=True)
 
     df["preconditioned"] = df["parameters_init_m"].apply(lambda x: not jnp.all(jnp.array(x) == 1.0))
+
+    for col in df.columns:
+        if df[col].dtype == "object" and isinstance(df[col].iloc[0], list):
+            df[col] = df[col].apply(lambda x: str(x))
+
+    if remove_duplicates:
+        columns_to_ignore = [
+            "experiment_id",
+            "results_trajectory_path",
+            "results_plot_path",
+            "results_runtime_seconds",
+            "file",
+        ]
+        df = df.drop_duplicates(
+            subset=[col for col in df.columns if col not in columns_to_ignore], keep="last"
+        )
 
     return df.rename(columns=lambda x: x.replace("parameters_", "").replace("results_metrics_", ""))
 

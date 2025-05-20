@@ -1,4 +1,4 @@
-experiment_name: bimodal_gaussian
+experiment_name: bimodal_gaussian_2
 seeds:
   - 1
   - 2
@@ -12,9 +12,9 @@ data:
     - [[[3, 0.7], [0.7, 4]], [[0.5, 0], [0, 3]]]
   weights:
     - [0.75, 0.25]
-  num_samples: 2000
+  num_samples: 500
 mcmc_samples:
-  - 1000
+  - 500
 burnin:
   - 0
 n_batches:
@@ -23,7 +23,7 @@ step_size:
   - 0.05
 init_m:
   - identity
-  - fisher
+  - fisher_approx
 mdecay:
   - 0.02
 mresampling:

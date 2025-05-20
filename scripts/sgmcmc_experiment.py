@@ -14,7 +14,7 @@ from enhancing_sgmcmc.metrics import compute_metrics
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
 from enhancing_sgmcmc.utils import (
     generate_gmm_data,
-    gmm_grad_estimator,
+    gmm_grad,
     plot_gmm_sampling,
     process_init_m,
     run_sequential_sghmc,
@@ -62,8 +62,6 @@ def run_experiments(config_path):
     mresampling_values = config.get("mresampling")
     init_position = jnp.array(config.get("init_position", [0.0, 0.0]))  # Default if not provided
 
-    sampler = SGHMC(gmm_grad_estimator)
-
     data_grid = list(
         product(
             all_means,
@@ -77,6 +75,13 @@ def run_experiments(config_path):
         means = jnp.array(means)
         covs = jnp.array(covs)
         weights = jnp.array(weights)
+
+        sampler = SGHMC(
+            grad_estimator=gmm_grad,
+            means=means,
+            covs=covs,
+            weights=weights,
+        )
 
         if verbosity > 0:
             print("=" * 10 + f" DATA CONFIG ({data_idx + 1}/{len(data_grid)}) " + "=" * 10)
