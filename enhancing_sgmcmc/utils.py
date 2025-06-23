@@ -297,10 +297,22 @@ def plot_mcmc_sampling(
         )
 
         ax.scatter(
-            trajectory[0, 0], trajectory[0, 1], color=cmap(3), s=50, marker="o", label="Start"
+            trajectory[0, 0],
+            trajectory[0, 1],
+            color=cmap(3),
+            s=50,
+            marker="o",
+            label="Start",
+            zorder=10,
         )
         ax.scatter(
-            trajectory[-1, 0], trajectory[-1, 1], color=cmap(2), s=50, marker="o", label="End"
+            trajectory[-1, 0],
+            trajectory[-1, 1],
+            color=cmap(2),
+            s=50,
+            marker="o",
+            label="End",
+            zorder=10,
         )
 
         if plot_last_n_samples > 0:
@@ -315,8 +327,8 @@ def plot_mcmc_sampling(
             )
 
     ax.set_title(title)
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    ax.set_xlabel("$x_1$")
+    ax.set_ylabel("$x_2$")
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
     ax.grid(True, alpha=0.3)
@@ -393,9 +405,9 @@ def plot_gmm_sampling(
                 labels,
                 loc="lower center",
                 bbox_to_anchor=(0.5, -0.05),
-                ncol=3 if len(labels) > 4 else 2,
+                ncol=3,
                 frameon=False,
-                fontsize=8,
+                fontsize=10,
             )
 
     elif plot_type == "time_series":
