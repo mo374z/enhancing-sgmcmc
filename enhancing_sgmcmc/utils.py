@@ -11,6 +11,8 @@ from jax.scipy.stats import multivariate_normal
 
 from enhancing_sgmcmc.samplers.sghmc import SGHMC
 
+sns.set_context("paper", font_scale=1.2)
+
 
 @jax.jit
 def gaussian_mixture_logprob(x, means, covs, weights):

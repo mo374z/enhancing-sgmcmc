@@ -1,6 +1,14 @@
 # Warmstart Preconditioning for SG-MCMC
 
-This repository implements experiments on enhancing stochastic gradient Markov Chain Monte Carlo (SG-MCMC) samplers through strategic warmstarts and mass matrix preconditioning.
+This repository implements experiments on enhancing stochastic gradient Markov Chain Monte Carlo (SG-MCMC) samplers through mass matrix preconditioning. We focus on 2D problems for intuitive visualization.
+
+## Features
+
+- **Generate experiment data**: Generate synthetic ground truth distributions for controlled experiments
+- **Configure preconditioners**: Various mass matrix preconditioning strategies for SGHMC samplers
+- **Evaluation framework**: Unified experiment execution and evaluation using Wasserstein distance, NLL, KSD, and ESS metrics
+- **Visualization**: Generate plots for trajectory analysis and posterior comparison
+
 
 ## Set-up poetry and install dependencies
 
