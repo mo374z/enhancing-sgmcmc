@@ -2,15 +2,21 @@
 
 This repository implements experiments on enhancing stochastic gradient Markov Chain Monte Carlo (SG-MCMC) samplers through mass matrix preconditioning. We focus on 2D problems for intuitive visualization.
 
+<div style="text-align: center;">
+    <img src="notebooks/illcond_gaussian_precon.png" alt="Sampling Trajectories" width="500"/>
+    <div style="font-size: 0.95em; color: #555;">
+        <em>Effect of preconditioning on the SG-MCMC sampling trajectory.</em>
+    </div>
+</div>
+
 ## Features
 
-- **Generate experiment data**: Generate synthetic ground truth distributions for controlled experiments
-- **Configure preconditioners**: Various mass matrix preconditioning strategies for SGHMC samplers
-- **Evaluation framework**: Unified experiment execution and evaluation using Wasserstein distance, NLL, KSD, and ESS metrics
-- **Visualization**: Generate plots for trajectory analysis and posterior comparison
+- **Generate experiment data**: Generate a synthetic ground truth for controlled experiments.
+- **Configure preconditioners**: Various mass matrix preconditioning strategies for SGHMC samplers.
+- **Evaluation framework**: Unified experiment execution and evaluation.
+- **Visualization**: Generate plots for trajectory analysis and posterior comparison.
 
-
-## Set-up poetry and install dependencies
+## Setup
 
 1.) Clone or fork this repository
 
